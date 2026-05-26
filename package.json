@@ -1,0 +1,19 @@
+{
+  "name": "ai-apply-agent",
+  "version": "0.1.0",
+  "private": true,
+  "description": "AI Job Apply Agent — monorepo",
+  "scripts": {
+    "dev:extension": "pnpm --filter @aiapply/extension dev",
+    "dev:backend": "pnpm --filter @aiapply/backend dev",
+    "dev:worker": "pnpm --filter @aiapply/worker dev",
+    "dev:dashboard": "pnpm --filter @aiapply/dashboard dev",
+    "build": "pnpm -r build",
+    "lint": "pnpm -r lint",
+    "typecheck": "pnpm -r typecheck"
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "packageManager": "pnpm@9.15.0"
+}
