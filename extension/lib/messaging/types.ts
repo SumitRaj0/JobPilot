@@ -1,0 +1,66 @@
+import type { ExtensionPageMetadata, JobFilters, Platform } from "@aiapply/shared";
+
+export type MessageType =
+  | "PING"
+  | "PONG"
+  | "CONTENT_READY"
+  | "GET_TAB_STATE"
+  | "TAB_STATE"
+  | "GET_PAGE_METADATA"
+  | "PAGE_METADATA"
+  | "START_AUTOMATION"
+  | "STOP_AUTOMATION"
+  | "AUTOMATION_STATUS"
+  | "SYNC_AUTOMATION_STATUS";
+
+export type { ExtensionPageMetadata };
+
+export interface ContentReadyPayload {
+  platform: Platform;
+  url: string;
+}
+
+export interface TabState {
+  supported: boolean;
+  platform: Platform | null;
+  url?: string;
+  automationRunning: boolean;
+  pageMetadata?: ExtensionPageMetadata | null;
+  backendSynced?: boolean;
+  backendError?: string | null;
+}
+
+export interface AutomationLastRun {
+  jobId: string;
+  platform: Platform;
+  success: boolean;
+  applied: number;
+  skipped: number;
+  failed: number;
+  alreadyApplied: number;
+  noApplyButton: number;
+  messages: string[];
+  finishedAt: string;
+}
+
+export interface AutomationStatus {
+  running: boolean;
+  platform?: Platform | null;
+  error?: string;
+  lastRun?: AutomationLastRun | null;
+  statusMessage?: string;
+}
+
+export interface ExtensionMessage<T = unknown> {
+  type: MessageType;
+  payload?: T;
+}
+
+export interface StartAutomationPayload {
+  filters: JobFilters;
+}
+
+export interface PingPongPayload {
+  platform?: Platform;
+  metadata?: ExtensionPageMetadata | null;
+}
