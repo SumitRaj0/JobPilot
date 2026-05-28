@@ -615,6 +615,14 @@
     transition: width 1s ease-out;
   }
 
+  .aiapply-section-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    margin: 4px 0 10px;
+  }
+
   .aiapply-section-title {
     margin: 4px 0 10px;
     font-size: 10px;
@@ -622,6 +630,19 @@
     letter-spacing: 0.08em;
     text-transform: uppercase;
     color: #475569;
+  }
+
+  .aiapply-section-title--inline {
+    margin: 0;
+  }
+
+  .aiapply-icon-btn--reset:disabled {
+    opacity: 0.35;
+    cursor: not-allowed;
+  }
+
+  .aiapply-icon-btn--reset:not(:disabled):hover {
+    color: #38bdf8;
   }
 
   .aiapply-alert-error {

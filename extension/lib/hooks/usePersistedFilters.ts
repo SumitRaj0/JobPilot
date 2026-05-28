@@ -25,5 +25,12 @@ export function usePersistedFilters() {
     });
   }, []);
 
-  return { filters, updateFilters, ready };
+  const resetFilters = useCallback(() => {
+    const next: JobFilters = { ...DEFAULT_FILTERS };
+    setFilters(next);
+    void chrome.storage.local.set({ [STORAGE_KEYS.filters]: next });
+    return next;
+  }, []);
+
+  return { filters, updateFilters, resetFilters, ready };
 }

@@ -5,12 +5,14 @@ import {
   stopAutomationOnBackend,
   syncPageMetadataToBackend,
 } from "~background/apiClient";
+import type { Platform } from "@aiapply/shared";
 import type {
   AutomationStatus,
   ContentReadyPayload,
   ExtensionMessage,
   ExtensionPageMetadata,
   StartAutomationPayload,
+  StopAutomationPayload,
   TabState,
 } from "~lib/messaging/types";
 import { STORAGE_KEYS } from "~lib/storage/keys";
@@ -33,8 +35,9 @@ function formatLastRunMessage(
 async function persistAutomationState(status: AutomationStatus): Promise<void> {
   await chrome.storage.local.set({
     [STORAGE_KEYS.automationState]: {
-      running: status.running,
+      running: status.runningOnThisPlatform ?? status.running,
       platform: status.platform ?? null,
+      runningPlatforms: status.runningPlatforms ?? [],
       lastRun: status.lastRun ?? null,
       statusMessage: status.statusMessage ?? null,
       updatedAt: Date.now(),
@@ -42,27 +45,60 @@ async function persistAutomationState(status: AutomationStatus): Promise<void> {
   });
 }
 
-async function refreshAutomationFromBackend(): Promise<AutomationStatus> {
+function resolveRunningPlatforms(status: {
+  running: boolean;
+  platform: Platform | null;
+  runningPlatforms?: Platform[];
+}): Platform[] {
+  if (status.runningPlatforms?.length) return status.runningPlatforms;
+  if (status.running && status.platform) return [status.platform];
+  return [];
+}
+
+function statusForPlatform(
+  remote: NonNullable<Awaited<ReturnType<typeof fetchAutomationStatusFromBackend>>["status"]>,
+  panelPlatform: Platform | undefined
+): AutomationStatus {
+  const runningPlatforms = resolveRunningPlatforms(remote);
+  const runningOnThisPlatform = panelPlatform
+    ? runningPlatforms.includes(panelPlatform)
+    : remote.running;
+
+  const lastRunForPanel =
+    (panelPlatform && remote.lastRunsByPlatform?.[panelPlatform]) ||
+    (remote.lastRun?.platform === panelPlatform ? remote.lastRun : null) ||
+    null;
+
+  return {
+    running: remote.running,
+    runningOnThisPlatform,
+    platform: panelPlatform ?? remote.platform ?? null,
+    runningPlatforms,
+    lastRun: lastRunForPanel,
+    statusMessage: runningOnThisPlatform
+      ? `Applying on ${panelPlatform} in the worker browser…`
+      : remote.running && runningPlatforms.length > 0
+        ? `Running on: ${runningPlatforms.join(", ")}`
+        : formatLastRunMessage(lastRunForPanel),
+  };
+}
+
+async function refreshAutomationFromBackend(
+  panelPlatform?: Platform
+): Promise<AutomationStatus> {
   const remote = await fetchAutomationStatusFromBackend();
 
   if (!remote.ok || !remote.status) {
     return {
-      running: automationRunning,
-      platform: lastPageMetadata?.platform ?? null,
+      running: false,
+      runningOnThisPlatform: false,
+      platform: panelPlatform ?? lastPageMetadata?.platform ?? null,
       error: remote.error,
     };
   }
 
   automationRunning = remote.status.running;
-  const status: AutomationStatus = {
-    running: remote.status.running,
-    platform: remote.status.platform ?? lastPageMetadata?.platform ?? null,
-    lastRun: remote.status.lastRun ?? null,
-    statusMessage: remote.status.running
-      ? "Worker is applying in its own browser (~20 min for 25 jobs). You can use other tabs."
-      : formatLastRunMessage(remote.status.lastRun ?? null),
-  };
-
+  const status = statusForPlatform(remote.status, panelPlatform);
   await persistAutomationState(status);
   return status;
 }
@@ -148,20 +184,24 @@ export function registerMessageRouter(): void {
             return handlePageMetadata(message.payload as ExtensionPageMetadata);
 
           case "START_AUTOMATION": {
-            const { filters } = message.payload as StartAutomationPayload;
-            const platform = lastPageMetadata?.platform;
+            const payload = message.payload as StartAutomationPayload;
+            const { filters, platform, pageMetadata: payloadMetadata } = payload;
 
             if (!platform) {
               return {
                 running: false,
-                error: "No platform detected — open a job site first",
+                error: "No platform specified for this tab",
               };
             }
+
+            const pageMetadata =
+              payloadMetadata ??
+              (lastPageMetadata?.platform === platform ? lastPageMetadata : undefined);
 
             const apiResult = await startAutomationOnBackend({
               platform,
               filters,
-              pageMetadata: lastPageMetadata,
+              pageMetadata,
             });
 
             lastBackendSync = { ok: apiResult.ok, error: apiResult.error };
@@ -171,38 +211,52 @@ export function registerMessageRouter(): void {
               console.warn("[AI Apply] start failed", apiResult.error);
               return {
                 running: false,
+                runningOnThisPlatform: false,
                 platform,
                 error: apiResult.error,
               };
             }
 
-            console.info("[AI Apply] automation queued", apiResult.data);
+            console.info("[AI Apply] automation queued", platform, apiResult.data);
             const status: AutomationStatus = {
               running: true,
+              runningOnThisPlatform: true,
               platform,
-              statusMessage: "Queued on backend — running…",
+              runningPlatforms: [platform],
+              statusMessage: `Queued ${platform} — running in worker browser…`,
             };
             await persistAutomationState(status);
             return status;
           }
 
           case "STOP_AUTOMATION": {
-            const apiResult = await stopAutomationOnBackend(
-              lastPageMetadata?.platform
-            );
-            automationRunning = false;
+            const { platform } = (message.payload ?? {}) as StopAutomationPayload;
+
+            if (!platform) {
+              return {
+                running: false,
+                error: "No platform specified for this tab",
+              };
+            }
+
+            const apiResult = await stopAutomationOnBackend(platform);
             lastBackendSync = { ok: apiResult.ok, error: apiResult.error };
+
+            const refreshed = await refreshAutomationFromBackend(platform);
             const status: AutomationStatus = {
-              running: false,
-              platform: lastPageMetadata?.platform ?? null,
-              statusMessage: "Automation stopped",
+              ...refreshed,
+              runningOnThisPlatform: false,
+              statusMessage: `${platform} automation stopped`,
             };
             await persistAutomationState(status);
             return status;
           }
 
-          case "SYNC_AUTOMATION_STATUS":
-            return refreshAutomationFromBackend();
+          case "SYNC_AUTOMATION_STATUS": {
+            const panelPlatform = (message.payload as { platform?: Platform } | undefined)
+              ?.platform;
+            return refreshAutomationFromBackend(panelPlatform);
+          }
 
           case "AUTOMATION_STATUS":
             return refreshAutomationFromBackend();

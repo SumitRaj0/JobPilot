@@ -5,6 +5,11 @@ import type { AutomationLastRun } from "~lib/messaging/types";
 import { PlayIcon, StopIcon } from "~components/panel/icons";
 import { normalizeLastRun } from "~lib/automation/estimates";
 
+const PLATFORM_LABEL: Partial<Record<Platform, string>> = {
+  naukri: "Naukri",
+  linkedin: "LinkedIn",
+};
+
 interface PanelFooterProps {
   platform: Platform;
   running: boolean;
@@ -26,6 +31,7 @@ export function PanelFooter({
   onStart,
   onStop,
 }: PanelFooterProps) {
+  const platformLabel = PLATFORM_LABEL[platform] ?? "Unsupported platform";
   const stats = lastRun ? normalizeLastRun(lastRun) : null;
   const applied = stats?.applied ?? 0;
   const failed = stats?.failed ?? 0;
@@ -71,8 +77,8 @@ export function PanelFooter({
           className={`aiapply-status-dot ${running ? "aiapply-status-dot--live" : ""}`}
         />
         {running
-          ? `Scanning ${platform}…`
-          : `Platform: ${platform} · Idle`}
+          ? `Applying on ${platformLabel}…`
+          : `${platformLabel} · Ready`}
       </p>
 
       {showStart && (
@@ -83,7 +89,7 @@ export function PanelFooter({
           onClick={onStart}
         >
           <PlayIcon />
-          {busy ? "Starting…" : "Start Auto Apply"}
+          {busy ? "Starting…" : `Start Auto Apply on ${platformLabel}`}
         </button>
       )}
       {showStop && (
@@ -94,7 +100,7 @@ export function PanelFooter({
           onClick={onStop}
         >
           <StopIcon />
-          Stop Automation
+          {busy ? "Stopping…" : `Stop ${platformLabel} automation`}
         </button>
       )}
     </footer>

@@ -80,7 +80,10 @@ export interface RunStatusSummary {
 }
 
 /** Parse apply target from worker messages. */
-export function parseTargetFromMessages(messages: string[]): number {
+export function parseTargetFromMessages(
+  messages: string[],
+  applied = 0
+): number {
   for (const m of messages) {
     if (/no limit|no application limit|all matching jobs/i.test(m)) {
       return 0;
@@ -88,6 +91,17 @@ export function parseTargetFromMessages(messages: string[]): number {
     const match = m.match(/of\s+(\d+)\s+target/i);
     if (match) return Number.parseInt(match[1]!, 10);
   }
+  for (const m of messages) {
+    const inQueue = m.match(/\((\d+)\s+in queue\)/i);
+    if (inQueue) return Number.parseInt(inQueue[1]!, 10);
+  }
+  for (const m of messages) {
+    const found = m.match(
+      /Found\s+(\d+)\s+(?:unique matching jobs|matching job cards|job cards)/i
+    );
+    if (found) return Number.parseInt(found[1]!, 10);
+  }
+  if (applied > 0) return applied;
   return TARGET_APPLICATIONS;
 }
 
@@ -114,9 +128,8 @@ function toneColorClass(tone: RunStatusTone): string {
 export function buildRunStatusSummary(run: AutomationLastRun): RunStatusSummary {
   const applied = run.applied;
   const failed = run.failed;
-  const skipped =
-    run.skipped + run.alreadyApplied + run.noApplyButton;
-  const totalTarget = parseTargetFromMessages(run.messages);
+  const skipped = run.skipped;
+  const totalTarget = parseTargetFromMessages(run.messages, applied);
   const unlimited = isUnlimitedTarget(totalTarget);
   const percent = applySuccessPercent(applied, failed);
   const tone = runStatusTone(applied, failed);
@@ -131,6 +144,12 @@ export function buildRunStatusSummary(run: AutomationLastRun): RunStatusSummary 
   }
   if (skipped > 0) {
     line += ` · ${skipped} skipped`;
+  }
+  if (run.alreadyApplied > 0) {
+    line += ` · ${run.alreadyApplied} already applied`;
+  }
+  if (run.noApplyButton > 0) {
+    line += ` · ${run.noApplyButton} no apply button`;
   }
 
   return {

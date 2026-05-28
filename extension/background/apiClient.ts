@@ -87,6 +87,7 @@ export async function stopAutomationOnBackend(
 export interface BackendAutomationStatus {
   running: boolean;
   platform: Platform | null;
+  runningPlatforms?: Platform[];
   jobId: string | null;
   lastRun?: {
     jobId: string;
@@ -100,6 +101,23 @@ export interface BackendAutomationStatus {
     messages: string[];
     finishedAt: string;
   } | null;
+  lastRunsByPlatform?: Partial<
+    Record<
+      Platform,
+      {
+        jobId: string;
+        platform: Platform;
+        success: boolean;
+        applied: number;
+        skipped: number;
+        failed: number;
+        alreadyApplied: number;
+        noApplyButton: number;
+        messages: string[];
+        finishedAt: string;
+      }
+    >
+  >;
 }
 
 export async function fetchAutomationStatusFromBackend(): Promise<{
@@ -122,8 +140,10 @@ export async function fetchAutomationStatusFromBackend(): Promise<{
     status: {
       running: Boolean(status.running),
       platform: status.platform ?? null,
+      runningPlatforms: status.runningPlatforms ?? [],
       jobId: status.jobId ?? null,
       lastRun: status.lastRun ?? null,
+      lastRunsByPlatform: status.lastRunsByPlatform ?? {},
     },
   };
 }

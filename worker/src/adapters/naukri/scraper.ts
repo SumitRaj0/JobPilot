@@ -148,22 +148,30 @@ export async function scrapeJobCards(
 
   let filtered = roleMatched.length > 0 ? roleMatched : jobs;
   if (filters.easyApplyOnly) {
-    const easyOnly = filtered.filter((j) => j.easyApply);
-    if (easyOnly.length === 0 && filtered.length > 0) {
-      logger.warn(
-        "Easy Apply only: none detected in card HTML — keeping jobs (Naukri filter already applied on page)",
-        { parsed: filtered.length }
-      );
-      filtered = filtered.map((j) => ({ ...j, easyApply: true }));
-    } else {
-      const beforeEasy = filtered.length;
-      filtered = easyOnly;
-      if (easyOnly.length < beforeEasy) {
-        logger.info("Easy Apply filter", {
+    const withEasyBadge = filtered.filter((j) => j.easyApply);
+    const inPortalApply = filtered.filter((j) => !j.externalApply);
+
+    const beforeEasy = filtered.length;
+    if (withEasyBadge.length > 0) {
+      filtered = withEasyBadge;
+      if (withEasyBadge.length < beforeEasy) {
+        logger.info("Easy Apply filter (badge)", {
           parsed: beforeEasy,
-          kept: easyOnly.length,
+          kept: withEasyBadge.length,
         });
       }
+    } else if (inPortalApply.length > 0) {
+      logger.warn(
+        "Easy Apply badge not found on cards — using Naukri Apply (excluding company-site jobs)",
+        { kept: inPortalApply.length, parsed: filtered.length }
+      );
+      filtered = inPortalApply.map((j) => ({ ...j, easyApply: true }));
+    } else if (filtered.length > 0) {
+      logger.warn(
+        "Easy Apply only: only company-site / external jobs visible — none to auto-apply",
+        { parsed: filtered.length }
+      );
+      filtered = [];
     }
   }
 

@@ -11,6 +11,8 @@ import type { AutomationLogger } from "../../logging/automationLogger.js";
 import { humanDelay } from "../../utils/delay.js";
 import { withRetry } from "../../utils/retry.js";
 import { captureScreenshot } from "../../utils/screenshot.js";
+import { isRunAborted } from "../shared/abortCheck.js";
+import type { RunContext } from "../types.js";
 import {
   clickApplyInDetailPanel,
   clickApplyInTuple,
@@ -20,6 +22,8 @@ import {
   openJobDetailInTuple,
   type CardApplyState,
 } from "./applyInBrowser.js";
+import { runApplyModalSteps } from "../../automation/questionnaire/runApplyModalSteps.js";
+import { naukriQuestionnaireConfig } from "./questionnaireConfig.js";
 import { NaukriSelectors } from "./selectors.js";
 import type { NaukriScrapedJob } from "./types.js";
 
@@ -43,20 +47,21 @@ const DETAIL_APPLY_SELECTORS = [
   "a:has-text('Apply')",
 ].join(", ");
 
+import {
+  emptyApplyBatch,
+  mergeApplyBatch,
+  type ApplyBatchResult,
+} from "../shared/applyBatch.js";
+
 export type ApplyJobOutcome =
   | "applied"
   | "already_applied"
   | "no_apply_button"
+  | "aborted"
   | "error";
 
-export interface ApplyBatchResult {
-  applied: number;
-  skipped: number;
-  failed: number;
-  alreadyApplied: number;
-  noApplyButton: number;
-  messages: string[];
-}
+export type { ApplyBatchResult };
+export { mergeApplyBatch };
 
 function tupleLocatorArgs(job: NaukriScrapedJob) {
   return {
@@ -74,6 +79,7 @@ export async function applyToJobs(
     fullAuto: boolean;
     maxApplications: number;
     searchListUrl: string;
+    ctx?: RunContext;
   }
 ): Promise<ApplyBatchResult> {
   const result: ApplyBatchResult = {
@@ -99,6 +105,11 @@ export async function applyToJobs(
     : Math.max(targetApplied * 8, jobs.length);
 
   for (const job of jobs) {
+    if (await isRunAborted(options.ctx)) {
+      result.messages.push("Stopped from panel — finishing current step");
+      break;
+    }
+
     if (!unlimited && result.applied >= targetApplied) {
       result.messages.push(`Reached target: ${targetApplied} applications`);
       break;
@@ -106,11 +117,6 @@ export async function applyToJobs(
     if (attempts >= maxAttempts) {
       result.messages.push(`Stopped after ${maxAttempts} attempts`);
       break;
-    }
-
-    if (job.externalApply && !job.easyApply) {
-      result.skipped++;
-      continue;
     }
 
     if (!job.easyApply) {
@@ -130,7 +136,7 @@ export async function applyToJobs(
 
     attempts++;
     const outcome = await withRetry(
-      () => applySingleJob(page, job, logger, options.searchListUrl),
+      () => applySingleJob(page, job, logger, options.searchListUrl, options.ctx),
       { attempts: 2, label: `apply-${job.jobId}` }
     ).catch(async (err) => {
       const shot = await captureScreenshot(
@@ -165,6 +171,9 @@ export async function applyToJobs(
       case "error":
         result.failed++;
         break;
+      case "aborted":
+        result.messages.push("Stopped from panel — apply loop halted");
+        return result;
     }
 
     const [dMin, dMax] = env.NAUKRI_FAST_APPLY ? [500, 1100] : [1200, 2500];
@@ -190,22 +199,22 @@ export async function applyToJobs(
   return result;
 }
 
-export function mergeApplyBatch(
-  a: ApplyBatchResult,
-  b: ApplyBatchResult
-): ApplyBatchResult {
-  return {
-    applied: a.applied + b.applied,
-    skipped: a.skipped + b.skipped,
-    failed: a.failed + b.failed,
-    alreadyApplied: a.alreadyApplied + b.alreadyApplied,
-    noApplyButton: a.noApplyButton + b.noApplyButton,
-    messages: [...a.messages, ...b.messages],
-  };
-}
-
 function isSearchResultsPage(url: string): boolean {
-  return /naukri\.com\/.*-jobs/i.test(url) && !url.includes("job-listings");
+  try {
+    const u = new URL(url);
+    if (!/naukri\.com/i.test(u.hostname)) return false;
+    if (/job-listings|job-details/i.test(u.pathname)) return false;
+    const path = u.pathname;
+    if (/-jobs(?:\/|$|-)/i.test(path)) return true;
+    if (/\/jobs(?:\/|$|-)/i.test(path)) return true;
+    const hasPage =
+      u.searchParams.has("page") || u.searchParams.has("pageNo");
+    if (hasPage && /jobs/i.test(path)) return true;
+  } catch {
+    // fall through to legacy check
+  }
+  const pathOnly = url.split("?")[0] ?? url;
+  return /naukri\.com\/.*-jobs/i.test(pathOnly) && !pathOnly.includes("job-listings");
 }
 
 async function returnToSearchList(
@@ -255,11 +264,15 @@ async function applySingleJob(
   page: Page,
   job: NaukriScrapedJob,
   logger: AutomationLogger,
-  searchListUrl: string
+  searchListUrl: string,
+  ctx?: RunContext
 ): Promise<ApplyJobOutcome> {
   try {
+    if (await isRunAborted(ctx)) return "aborted";
+
     if (!isSearchResultsPage(page.url())) {
       await returnToSearchList(page, searchListUrl, logger);
+      if (await isRunAborted(ctx)) return "aborted";
     }
 
     const tuple = jobTupleLocator(page, job);
@@ -275,7 +288,7 @@ async function applySingleJob(
     }
 
     if (job.url && /job-listings|job-details/i.test(job.url)) {
-      const viaPage = await applyViaJobPage(page, job, logger, searchListUrl);
+      const viaPage = await applyViaJobPage(page, job, logger, searchListUrl, ctx);
       if (viaPage !== "error") return viaPage;
     }
 
@@ -291,6 +304,7 @@ async function applySingleJob(
     if (cardStateAgain === "no_apply_button") return "no_apply_button";
 
     let clicked = await tryClickApplyOnTuple(page, tuple, job);
+    if (await isRunAborted(ctx)) return "aborted";
     if (!clicked) {
       clicked = await tryClickApplyViaDetailPanel(page, job, logger);
     }
@@ -303,7 +317,8 @@ async function applySingleJob(
       return "no_apply_button";
     }
 
-    const submitted = await completeApplyFlow(page, logger);
+    if (await isRunAborted(ctx)) return "aborted";
+    const submitted = await completeApplyFlow(page, logger, ctx);
     await returnToSearchList(page, searchListUrl, logger);
     return submitted ? "applied" : "no_apply_button";
   } catch (err) {
@@ -316,13 +331,16 @@ async function applyViaJobPage(
   page: Page,
   job: NaukriScrapedJob,
   logger: AutomationLogger,
-  searchListUrl: string
+  searchListUrl: string,
+  ctx?: RunContext
 ): Promise<ApplyJobOutcome> {
+  if (await isRunAborted(ctx)) return "aborted";
   logger.info("Opening job page", { url: job.url, jobId: job.jobId });
 
   await page.goto(job.url, { waitUntil: "domcontentloaded", timeout: 45_000 });
   await page.waitForLoadState("networkidle", { timeout: 12_000 }).catch(() => undefined);
   await humanDelay(1500, 2500);
+  if (await isRunAborted(ctx)) return "aborted";
 
   await dismissNaukriOverlays(page);
 
@@ -345,7 +363,8 @@ async function applyViaJobPage(
   }
 
   await humanDelay(800, 1500);
-  const submitted = await completeApplyFlow(page, logger);
+  if (await isRunAborted(ctx)) return "aborted";
+  const submitted = await completeApplyFlow(page, logger, ctx);
   await returnToSearchList(page, searchListUrl, logger);
   return submitted ? "applied" : "no_apply_button";
 }
@@ -369,8 +388,10 @@ async function dismissNaukriOverlays(page: Page): Promise<void> {
 
 async function completeApplyFlow(
   page: Page,
-  logger: AutomationLogger
+  logger: AutomationLogger,
+  ctx?: RunContext
 ): Promise<boolean> {
+  if (await isRunAborted(ctx)) return false;
   await dismissNaukriOverlays(page);
 
   const modal = page.locator(NaukriSelectors.applyModal.container).first();
@@ -378,15 +399,22 @@ async function completeApplyFlow(
     .isVisible({ timeout: 5000 })
     .catch(() => false);
 
-  if (modalVisible) {
-    await uploadResumeIfNeeded(page, logger);
-    const submitted = await clickSubmitInModal(page, logger);
-    await closeModalIfOpen(page);
-    return submitted;
-  }
-
   await uploadResumeIfNeeded(page, logger);
-  return clickSubmitInModal(page, logger);
+  if (await isRunAborted(ctx)) return false;
+  const stepsOk = await runApplyModalSteps(page, naukriQuestionnaireConfig, logger, {
+    shouldAbort: ctx?.shouldAbort,
+  });
+  if (!stepsOk) {
+    logger.warn("Apply aborted — questionnaire could not be completed");
+    if (modalVisible) {
+      await closeModalIfOpen(page);
+    }
+    return false;
+  }
+  if (modalVisible) {
+    await closeModalIfOpen(page);
+  }
+  return true;
 }
 
 async function tryClickApplyOnTuple(
@@ -525,29 +553,6 @@ async function uploadResumeIfNeeded(
     await humanDelay(500, 1000);
     logger.info("Resume uploaded", { path: env.resumePath });
   }
-}
-
-async function clickSubmitInModal(
-  page: Page,
-  logger: AutomationLogger
-): Promise<boolean> {
-  await dismissNaukriOverlays(page);
-
-  const submit = page
-    .locator(
-      'button:has-text("Submit"), button:has-text("Apply now"), button:has-text("Apply")'
-    )
-    .filter({ hasNot: page.locator('[class*="save-job"]') })
-    .filter({ hasNotText: /^save$/i })
-    .first();
-
-  if (await submit.isVisible({ timeout: 4000 }).catch(() => false)) {
-    await submit.click({ force: true });
-    await humanDelay(1000, 2000);
-    logger.info("Submit clicked");
-    return true;
-  }
-  return false;
 }
 
 async function closeModalIfOpen(page: Page): Promise<void> {

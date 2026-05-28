@@ -79,3 +79,24 @@ export function SettingsIcon() {
     </svg>
   );
 }
+
+export function ResetIcon() {
+  return (
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" aria-hidden>
+      <path
+        d="M4 4v5h5M20 20v-5h-5"
+        stroke="currentColor"
+        strokeWidth="1.75"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+      <path
+        d="M5.5 9A7.5 7.5 0 0 1 18 6.5L20 4M4 20l2-2A7.5 7.5 0 0 0 19 15"
+        stroke="currentColor"
+        strokeWidth="1.75"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+    </svg>
+  );
+}

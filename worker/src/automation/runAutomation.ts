@@ -4,6 +4,11 @@ import { getPlatformAdapter } from "../adapters/index.js";
 import { browserManager } from "../browser/BrowserManager.js";
 import { env } from "../config/env.js";
 import { AutomationLogger } from "../logging/automationLogger.js";
+import {
+  clearRunAbortFlag,
+  createRunAbortChecker,
+  RunDeadline,
+} from "./runControl.js";
 
 export interface AutomationJobPayload {
   userId: string;
@@ -27,10 +32,15 @@ export async function runAutomation(
   const adapter = getPlatformAdapter(data.platform);
   const page = await browserManager.newPage(data.platform, data.userId);
 
+  await clearRunAbortFlag(data.userId, data.platform);
+  const deadline = RunDeadline.fromEnv();
+  const shouldAbort = createRunAbortChecker(data.userId, data.platform, deadline);
+
   try {
     const result = await adapter.run(page, data.filters, logger, {
       userId: data.userId,
       jobId,
+      shouldAbort,
     });
     await browserManager.persistSession(page, data.platform, data.userId);
     logger.info("Job finished", result);

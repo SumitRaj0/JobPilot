@@ -16,10 +16,9 @@ interface AssistantOrbProps {
   consumeClick: () => boolean;
 }
 
-const PLATFORM_LABEL: Record<Platform, string> = {
+const PLATFORM_LABEL: Partial<Record<Platform, string>> = {
   naukri: "Naukri",
   linkedin: "LinkedIn",
-  indeed: "Indeed",
 };
 
 export function AssistantOrb({
@@ -75,7 +74,7 @@ export function AssistantOrb({
           {title}
         </p>
         <p className="aiapply-m-0 aiapply-mt-1 aiapply-text-[10px] aiapply-text-slate-400">
-          {PLATFORM_LABEL[platform]}
+          {PLATFORM_LABEL[platform] ?? "Unsupported"}
           {appliedCount > 0 ? ` · ${appliedCount} applied` : ""}
         </p>
       </div>

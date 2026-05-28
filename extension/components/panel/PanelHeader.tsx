@@ -12,10 +12,9 @@ interface PanelHeaderProps {
   onMinimize: () => void;
 }
 
-const PLATFORM_LABEL: Record<Platform, string> = {
+const PLATFORM_LABEL: Partial<Record<Platform, string>> = {
   naukri: "Naukri",
   linkedin: "LinkedIn",
-  indeed: "Indeed",
 };
 
 export function PanelHeader({
@@ -50,7 +49,7 @@ export function PanelHeader({
             <span
               className={`aiapply-platform-badge aiapply-platform-badge--${platform}`}
             >
-              {PLATFORM_LABEL[platform]}
+              {PLATFORM_LABEL[platform] ?? "Unsupported"}
             </span>
             <span className="aiapply-info-bar-divider" aria-hidden />
             <span

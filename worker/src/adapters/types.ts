@@ -18,6 +18,8 @@ export interface AutomationRunResult {
 export interface RunContext {
   userId?: string;
   jobId?: string;
+  /** Stops applying when timer expires or user hits Stop in the panel. */
+  shouldAbort?: () => boolean | Promise<boolean>;
 }
 
 export interface IPlatformAdapter {

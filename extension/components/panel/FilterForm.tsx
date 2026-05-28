@@ -1,6 +1,7 @@
 import type { JobFilters } from "@aiapply/shared";
 import type { ReactNode } from "react";
 
+import { ResetIcon } from "~components/panel/icons";
 import type { FilterFieldKey } from "~lib/validation/jobFilters";
 
 interface FilterFormProps {
@@ -9,6 +10,7 @@ interface FilterFormProps {
   errors?: Partial<Record<FilterFieldKey, string>>;
   onChange: (patch: Partial<JobFilters>) => void;
   onClearError?: (field: FilterFieldKey) => void;
+  onReset?: () => void;
 }
 
 const DATE_OPTIONS = [
@@ -25,6 +27,7 @@ export function FilterForm({
   errors = {},
   onChange,
   onClearError,
+  onReset,
 }: FilterFormProps) {
   const patch = (field: FilterFieldKey, value: Partial<JobFilters>) => {
     onChange(value);
@@ -33,7 +36,23 @@ export function FilterForm({
 
   return (
     <div>
-      <p className="aiapply-section-title">Job preferences</p>
+      <div className="aiapply-section-header">
+        <p className="aiapply-section-title aiapply-section-title--inline">
+          Job preferences
+        </p>
+        {onReset ? (
+          <button
+            type="button"
+            className="aiapply-icon-btn aiapply-icon-btn--reset"
+            aria-label="Reset job preferences form"
+            title="Reset form to defaults"
+            disabled={disabled}
+            onClick={onReset}
+          >
+            <ResetIcon />
+          </button>
+        ) : null}
+      </div>
       <div className="aiapply-space-y-3">
         <Field label="Role / job title" required error={errors.role}>
           <input

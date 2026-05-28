@@ -46,6 +46,9 @@ export interface AutomationLastRun {
 export interface AutomationStatus {
   running: boolean;
   platform?: Platform | null;
+  runningPlatforms?: Platform[];
+  /** True when this panel’s platform is in the active worker run set */
+  runningOnThisPlatform?: boolean;
   error?: string;
   lastRun?: AutomationLastRun | null;
   statusMessage?: string;
@@ -58,6 +61,13 @@ export interface ExtensionMessage<T = unknown> {
 
 export interface StartAutomationPayload {
   filters: JobFilters;
+  /** Tab’s job site — start only this platform’s worker job */
+  platform: Platform;
+  pageMetadata?: ExtensionPageMetadata;
+}
+
+export interface StopAutomationPayload {
+  platform: Platform;
 }
 
 export interface PingPongPayload {

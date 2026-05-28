@@ -1,6 +1,6 @@
 import { z } from "zod";
 
-const platformSchema = z.enum(["naukri", "linkedin", "indeed"]);
+const platformSchema = z.enum(["naukri", "linkedin"]);
 
 export const pageMetadataSchema = z.object({
   platform: platformSchema,

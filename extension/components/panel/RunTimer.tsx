@@ -8,10 +8,13 @@ import {
 
 interface RunTimerProps {
   runStartedAt: number;
+  /** Called once when estimated session time reaches zero. */
+  onTimeExpired?: () => void;
 }
 
-export function RunTimer({ runStartedAt }: RunTimerProps) {
+export function RunTimer({ runStartedAt, onTimeExpired }: RunTimerProps) {
   const [, setTick] = useState(0);
+  const [expiredFired, setExpiredFired] = useState(false);
 
   useEffect(() => {
     const id = window.setInterval(() => setTick((n) => n + 1), 1000);
@@ -21,6 +24,12 @@ export function RunTimer({ runStartedAt }: RunTimerProps) {
   const elapsedSec = Math.floor((Date.now() - runStartedAt) / 1000);
   const totalEst = estimateRunDurationSeconds();
   const remainingSec = Math.max(0, totalEst - elapsedSec);
+
+  useEffect(() => {
+    if (remainingSec > 0 || expiredFired || !onTimeExpired) return;
+    setExpiredFired(true);
+    onTimeExpired();
+  }, [remainingSec, expiredFired, onTimeExpired]);
 
   return (
     <div

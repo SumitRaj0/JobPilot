@@ -7,6 +7,7 @@
     "dev:extension": "pnpm --filter @aiapply/extension dev",
     "dev:backend": "pnpm --filter @aiapply/backend dev",
     "dev:worker": "pnpm --filter @aiapply/worker dev",
+    "test:linkedin": "pnpm --filter @aiapply/worker test:linkedin",
     "dev:dashboard": "pnpm --filter @aiapply/dashboard dev",
     "build": "pnpm -r build",
     "lint": "pnpm -r lint",

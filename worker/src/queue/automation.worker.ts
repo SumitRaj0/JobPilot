@@ -27,6 +27,9 @@ export function startAutomationWorker(): Worker<AutomationJobPayload> {
     {
       connection,
       concurrency: env.WORKER_CONCURRENCY,
+      /** Long apply runs can exceed 15+ minutes — default 30s lock causes renewal errors. */
+      lockDuration: 20 * 60 * 1000,
+      lockRenewTime: 30 * 1000,
     }
   );
 

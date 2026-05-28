@@ -7,6 +7,7 @@ import { PanelFooter } from "~components/panel/PanelFooter";
 import { PanelHeader } from "~components/panel/PanelHeader";
 import { RunStatusLine } from "~components/panel/RunStatusLine";
 import { RunTimer } from "~components/panel/RunTimer";
+import { collectPageMetadata } from "~lib/content/metadataPublisher";
 import { normalizeLastRun } from "~lib/automation/estimates";
 import { useDraggable } from "~lib/hooks/useDraggable";
 import { usePersistedFilters } from "~lib/hooks/usePersistedFilters";
@@ -28,7 +29,7 @@ interface FloatingPanelProps {
 }
 
 export function FloatingPanel({ platform }: FloatingPanelProps) {
-  const { filters, updateFilters, ready } = usePersistedFilters();
+  const { filters, updateFilters, resetFilters, ready } = usePersistedFilters();
   const [collapsed, setCollapsed] = useState(false);
   const [running, setRunning] = useState(false);
   const [lastRun, setLastRun] = useState<AutomationLastRun | null>(null);
@@ -51,24 +52,42 @@ export function FloatingPanel({ platform }: FloatingPanelProps) {
     resetToBottomRight,
   } = useDraggable(collapsed);
 
-  const syncRunning = useCallback((status: AutomationStatus) => {
-    setRunning((wasRunning) => {
-      if (status.running && !wasRunning) {
-        setRunStartedAt(Date.now());
-        setLastRun(null);
-        setStatusText(null);
-      }
-      return status.running;
-    });
+  const syncRunning = useCallback(
+    (status: AutomationStatus) => {
+      const activeOnTab = status.runningOnThisPlatform ?? false;
 
-    if (!status.running) {
-      setRunStartedAt(null);
-      if (status.lastRun) {
-        setLastRun(normalizeLastRun(status.lastRun));
+      setRunning((wasRunning) => {
+        if (activeOnTab && !wasRunning) {
+          setRunStartedAt(Date.now());
+          setLastRun(null);
+          setStatusText(null);
+        }
+        return activeOnTab;
+      });
+
+      if (!activeOnTab) {
+        setRunStartedAt(null);
+        if (status.lastRun?.platform === platform) {
+          setLastRun(normalizeLastRun(status.lastRun));
+        } else {
+          setLastRun(null);
+        }
+        if (status.statusMessage && !status.running) {
+          setStatusText(status.statusMessage);
+        } else if (status.running && status.runningPlatforms?.length) {
+          const others = status.runningPlatforms.filter((p) => p !== platform);
+          if (others.length > 0) {
+            setStatusText(`Other sites running: ${others.join(", ")}`);
+          } else {
+            setStatusText(null);
+          }
+        } else {
+          setStatusText(null);
+        }
       }
-      if (status.statusMessage) setStatusText(status.statusMessage);
-    }
-  }, []);
+    },
+    [platform]
+  );
 
   useEffect(() => {
     chrome.storage.local.get(
@@ -83,33 +102,28 @@ export function FloatingPanel({ platform }: FloatingPanelProps) {
               runStartedAt?: number | null;
             }
           | undefined;
-        if (state?.running) {
-          setRunning(true);
-          setRunStartedAt(state.runStartedAt ?? Date.now());
-        }
-        if (state?.lastRun && !state?.running) {
-          setLastRun(normalizeLastRun(state.lastRun));
-        }
         if (state?.statusMessage) setStatusText(state.statusMessage);
       }
     );
   }, []);
 
   useEffect(() => {
-    void sendToBackground<AutomationStatus>({ type: "SYNC_AUTOMATION_STATUS" }).then(
-      syncRunning
-    );
-  }, [syncRunning]);
+    void sendToBackground<AutomationStatus>({
+      type: "SYNC_AUTOMATION_STATUS",
+      payload: { platform },
+    }).then(syncRunning);
+  }, [platform, syncRunning]);
 
   useEffect(() => {
     if (!running) return;
     const id = window.setInterval(() => {
-      void sendToBackground<AutomationStatus>({ type: "SYNC_AUTOMATION_STATUS" }).then(
-        syncRunning
-      );
+      void sendToBackground<AutomationStatus>({
+        type: "SYNC_AUTOMATION_STATUS",
+        payload: { platform },
+      }).then(syncRunning);
     }, 4000);
     return () => window.clearInterval(id);
-  }, [running, syncRunning]);
+  }, [running, platform, syncRunning]);
 
   useEffect(() => {
     void chrome.storage.local.set({
@@ -150,6 +164,14 @@ export function FloatingPanel({ platform }: FloatingPanelProps) {
     });
   }, []);
 
+  const handleResetForm = useCallback(() => {
+    if (running || busy) return;
+    resetFilters();
+    setFieldErrors({});
+    setFormWarning(null);
+    setStatusText(null);
+  }, [running, busy, resetFilters]);
+
   const handleStart = async () => {
     const validation = validateJobFilters(filters);
     if (!validation.valid) {
@@ -171,12 +193,16 @@ export function FloatingPanel({ platform }: FloatingPanelProps) {
     setStatusText(null);
     setLastRun(null);
     try {
-      const payload: StartAutomationPayload = { filters: sanitized };
+      const payload: StartAutomationPayload = {
+        filters: sanitized,
+        platform,
+        pageMetadata: collectPageMetadata() ?? undefined,
+      };
       const status = await sendToBackground<AutomationStatus>({
         type: "START_AUTOMATION",
         payload,
       });
-      if (status.running) {
+      if (status.runningOnThisPlatform ?? status.running) {
         setRunning(true);
         setRunStartedAt(Date.now());
       } else {
@@ -197,6 +223,7 @@ export function FloatingPanel({ platform }: FloatingPanelProps) {
     try {
       const status = await sendToBackground<AutomationStatus>({
         type: "STOP_AUTOMATION",
+        payload: { platform },
       });
       setRunning(status.running);
       setRunStartedAt(null);
@@ -252,7 +279,17 @@ export function FloatingPanel({ platform }: FloatingPanelProps) {
 
           <div className="aiapply-panel-scroll">
             <div className="aiapply-space-y-3 aiapply-pt-3 aiapply-pb-2">
-              {showTimer && <RunTimer runStartedAt={runStartedAt} />}
+              {showTimer && (
+                <RunTimer
+                  runStartedAt={runStartedAt}
+                  onTimeExpired={() => {
+                    if (!running || busy) return;
+                    void handleStop().then(() => {
+                      setStatusText("Session time ended — automation stopped");
+                    });
+                  }}
+                />
+              )}
               {showStatusLine && <RunStatusLine lastRun={lastRun} />}
               {formWarning && !running && (
                 <p className="aiapply-alert-warn" role="status">
@@ -270,6 +307,7 @@ export function FloatingPanel({ platform }: FloatingPanelProps) {
                 errors={fieldErrors}
                 onChange={updateFilters}
                 onClearError={clearFieldError}
+                onReset={handleResetForm}
               />
             </div>
           </div>

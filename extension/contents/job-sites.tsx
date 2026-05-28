@@ -15,9 +15,6 @@ export const config: PlasmoCSConfig = {
     "https://naukri.com/*",
     "https://*.linkedin.com/*",
     "https://linkedin.com/*",
-    "https://*.indeed.com/*",
-    "https://indeed.com/*",
-    "https://in.indeed.com/*",
   ],
 };
 

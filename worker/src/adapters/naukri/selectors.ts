@@ -35,4 +35,16 @@ export const NaukriSelectors = {
       'button:has-text("Submit"), button:has-text("Apply"), button:has-text("Save")',
     closeBtn: 'button:has-text("Close"), .crossIcon, [aria-label="Close"]',
   },
+  questionnaire: {
+    container:
+      '.chatbot-container, .modal-form-fields, [class*="chatbot" i], [class*="questionnaire" i], .apply-modal, div[role="dialog"]',
+    questionBlock:
+      '.question-block, [class*="question" i], [class*="form-group" i], [class*="fieldWrapper" i], fieldset, .form-row',
+    questionLabel:
+      '.question-label-text, .question-label, [class*="question" i] label, label',
+    dropdownOption: 'ul.dropdown-list li, [role="option"], label:has(input[type="radio"])',
+    textInput: 'input[type="text"], input[type="number"], textarea',
+    submitBtn:
+      'button:has-text("Submit application"), button:has-text("Submit"), button:has-text("Apply now")',
+  },
 } as const;

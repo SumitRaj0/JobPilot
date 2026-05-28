@@ -83,14 +83,27 @@ export function scrapeTuplesInBrowser(
       }
     }
     if (!easyApply) {
-      const buttons = Array.from(card.querySelectorAll("button, a, span"));
+      const buttons = Array.from(card.querySelectorAll("button, a, span, div"));
       for (const el of buttons) {
-        const text = (el.textContent ?? "").trim();
-        if (/^apply$/i.test(text) && !/company\s*site/i.test(tupleText)) {
+        const text = (el.textContent ?? "").replace(/\s+/g, " ").trim();
+        const aria = (el.getAttribute("aria-label") ?? "").toLowerCase();
+        if (
+          (/^apply$/i.test(text) || /apply on naukri/i.test(`${text} ${aria}`)) &&
+          !/company\s*site|external/i.test(`${text} ${tupleText}`)
+        ) {
           easyApply = true;
           break;
         }
       }
+    }
+    if (
+      !easyApply &&
+      card.querySelector(
+        '[class*="apply" i], [class*="ApplyButton" i], [id*="apply" i], .tuple-apply-btn'
+      ) &&
+      !/apply on company|company site/i.test(tupleText)
+    ) {
+      easyApply = true;
     }
 
     const externalApply =
@@ -116,12 +129,21 @@ export function scrapeTuplesInBrowser(
       }
     }
 
+    const dataJobId = card.getAttribute("data-job-id")?.trim();
     const jobIdMatch = href.match(
       /job-listings-(\d+)|jobid[=/-](\d+)|(\d{8,})/i
     );
-    const jobId = jobIdMatch
+    const jobIdFromHref = jobIdMatch
       ? (jobIdMatch[1] ?? jobIdMatch[2] ?? jobIdMatch[3])
-      : `naukri-${index}`;
+      : null;
+    const pageKey = `${window.location.pathname}${window.location.search}`
+      .replace(/[^a-z0-9]+/gi, "-")
+      .replace(/^-|-$/g, "")
+      .slice(0, 96);
+    const jobId =
+      dataJobId ||
+      jobIdFromHref ||
+      `naukri-${pageKey || "srp"}-${index}`;
 
     return {
       platform: "naukri" as const,

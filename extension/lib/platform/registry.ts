@@ -1,10 +1,9 @@
-import { indeedAdapter } from "~lib/platform/adapters/indeed";
 import { linkedinAdapter } from "~lib/platform/adapters/linkedin";
 import { naukriAdapter } from "~lib/platform/adapters/naukri";
 import type { ExtensionPageMetadata, PlatformAdapter } from "~lib/platform/types";
 import type { Platform } from "@aiapply/shared";
 
-const adapters: PlatformAdapter[] = [naukriAdapter, linkedinAdapter, indeedAdapter];
+const adapters: PlatformAdapter[] = [naukriAdapter, linkedinAdapter];
 
 export function getPlatformAdapter(platform: Platform): PlatformAdapter | null {
   return adapters.find((a) => a.platform === platform) ?? null;

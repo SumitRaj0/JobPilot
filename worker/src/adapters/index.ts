@@ -1,14 +1,12 @@
 import type { Platform } from "@aiapply/shared";
 
-import { IndeedAdapter } from "./indeed.adapter.js";
 import { LinkedInAdapter } from "./linkedin.adapter.js";
 import { NaukriAdapter } from "./naukri.adapter.js";
 import type { IPlatformAdapter } from "./types.js";
 
-const adapters: Record<Platform, IPlatformAdapter> = {
+const adapters: Partial<Record<Platform, IPlatformAdapter>> = {
   naukri: new NaukriAdapter(),
   linkedin: new LinkedInAdapter(),
-  indeed: new IndeedAdapter(),
 };
 
 export function getPlatformAdapter(platform: Platform): IPlatformAdapter {

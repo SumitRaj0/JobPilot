@@ -3,7 +3,7 @@ import { z } from "zod";
 
 import { pageMetadataSchema } from "./extension.schema.js";
 
-const platformSchema = z.enum(["naukri", "linkedin", "indeed"]);
+const platformSchema = z.enum(["naukri", "linkedin"]);
 
 export const jobFiltersSchema = z.object({
   role: z.string().trim().min(2, "Job title must be at least 2 characters").max(80),
@@ -41,6 +41,11 @@ export const startAutomationSchema = z.object({
   platform: platformSchema,
   filters: jobFiltersSchema,
   pageMetadata: pageMetadataSchema.optional(),
+});
+
+/** Start Naukri + LinkedIn jobs in parallel. */
+export const startAllAutomationSchema = z.object({
+  filters: jobFiltersSchema,
 });
 
 export const stopAutomationSchema = z.object({

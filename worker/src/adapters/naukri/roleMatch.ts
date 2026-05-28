@@ -17,12 +17,14 @@ export function roleToSlug(role: string): string {
 /** Tokens used to keep only jobs related to the searched role. */
 export function roleKeywords(role: string): string[] {
   const norm = normalize(role);
-  const tokens = norm.split(" ").filter((t) => t.length > 1);
-  const joined = norm.replace(/\s/g, "");
-  if (joined.length > 2 && !tokens.includes(joined)) {
-    tokens.unshift(joined);
-  }
-  return [...new Set(tokens)];
+  return [...new Set(norm.split(" ").filter((t) => t.length > 1))];
+}
+
+function titleContainsKeyword(titleNorm: string, titleCompact: string, kw: string): boolean {
+  if (kw.length <= 1) return false;
+  if (titleNorm.includes(kw) || titleCompact.includes(kw)) return true;
+  const re = new RegExp(`(^|\\s)${kw.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}(\\s|$)`);
+  return re.test(titleNorm);
 }
 
 export function jobTitleMatchesRole(title: string, role: string): boolean {
@@ -32,13 +34,11 @@ export function jobTitleMatchesRole(title: string, role: string): boolean {
   const titleNorm = normalize(title);
   if (!titleNorm) return false;
 
+  const titleCompact = titleNorm.replace(/\s/g, "");
   let hits = 0;
   for (const kw of keywords) {
-    if (titleNorm.includes(kw)) hits++;
+    if (titleContainsKeyword(titleNorm, titleCompact, kw)) hits++;
   }
-
-  const main = keywords[0];
-  if (main && titleNorm.includes(main)) return true;
 
   const required = Math.max(1, Math.ceil(keywords.length * 0.4));
   return hits >= required;

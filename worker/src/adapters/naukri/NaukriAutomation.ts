@@ -12,7 +12,9 @@ import {
 import type { AutomationLogger } from "../../logging/automationLogger.js";
 import { captureScreenshot } from "../../utils/screenshot.js";
 import type { AutomationRunResult, RunContext } from "../types.js";
-import { applyToJobs, mergeApplyBatch, type ApplyBatchResult } from "./apply.js";
+import { isRunAborted } from "../shared/abortCheck.js";
+import { emptyApplyBatch, mergeApplyBatch, type ApplyBatchResult } from "../shared/applyBatch.js";
+import { applyToJobs } from "./apply.js";
 import { navigateToSearch } from "./filters.js";
 import {
   loadMoreJobsOnPage,
@@ -24,15 +26,6 @@ import {
   verifyLoggedInOnSearchPage,
   waitForManualLogin,
 } from "./session.js";
-
-const emptyApplyResult = (): ApplyBatchResult => ({
-  applied: 0,
-  skipped: 0,
-  failed: 0,
-  alreadyApplied: 0,
-  noApplyButton: 0,
-  messages: [],
-});
 
 export class NaukriAutomation {
   async run(
@@ -109,12 +102,17 @@ export class NaukriAutomation {
       }
 
       const seenJobIds = new Set<string>();
-      let applyResult = emptyApplyResult();
+      let applyResult = emptyApplyBatch();
       const maxPages = resolveMaxSearchPages();
       const scrapeLimit = resolveScrapeLimit();
       const scrollRounds = resolveScrollRounds();
 
       for (let pageIndex = 0; pageIndex < maxPages; pageIndex++) {
+        if (await isRunAborted(ctx)) {
+          messages.push("Naukri run stopped — time limit reached or stopped from panel");
+          break;
+        }
+
         if (pageIndex > 0) {
           const moved = await tryGoToNextSearchPage(page, logger);
           if (!moved) break;
@@ -184,6 +182,7 @@ export class NaukriAutomation {
           fullAuto: filters.fullAuto,
           maxApplications: remaining,
           searchListUrl,
+          ctx,
         });
         applyResult = mergeApplyBatch(applyResult, batch);
 
