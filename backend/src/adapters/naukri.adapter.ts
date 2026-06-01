@@ -7,6 +7,7 @@ export class NaukriAdapter extends BasePlatformAdapter {
 
   buildSearchPayload(filters: JobFilters): Record<string, unknown> {
     return {
+      mode: filters.mode,
       keyword: filters.role,
       experience: filters.experience,
       remote: filters.remote,

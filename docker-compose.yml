@@ -1,0 +1,110 @@
+# AI Apply — one command for Redis, MongoDB, API, worker, and extension dev build.
+#
+#   docker compose up --build
+#   # or: pnpm docker:up
+#
+# Chrome extension: load unpacked from extension/build/chrome-mv3-dev (see README).
+
+name: aiapply
+
+services:
+  redis:
+    image: redis:7-alpine
+    container_name: aiapply-redis
+    ports:
+      - "6379:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+    restart: unless-stopped
+
+  mongo:
+    image: mongo:7
+    container_name: aiapply-mongo
+    ports:
+      - "27017:27017"
+    volumes:
+      - mongo-data:/data/db
+    restart: unless-stopped
+
+  backend:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile.node
+    container_name: aiapply-backend
+    command: ["pnpm", "--filter", "@aiapply/backend", "dev"]
+    ports:
+      - "3001:3001"
+    environment:
+      NODE_ENV: development
+      PORT: 3001
+      REDIS_URL: redis://redis:6379
+      MONGODB_URI: mongodb://mongo:27017/aiapply
+      DEV_MOCK_QUEUE: "false"
+      JWT_SECRET: ${JWT_SECRET:-dev-docker-secret-change-me}
+    volumes:
+      - .:/app
+      - node_modules:/app/node_modules
+    depends_on:
+      redis:
+        condition: service_healthy
+      mongo:
+        condition: service_started
+    restart: unless-stopped
+
+  worker:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile.worker
+    container_name: aiapply-worker
+    command: ["pnpm", "--filter", "@aiapply/worker", "dev"]
+    environment:
+      NODE_ENV: development
+      REDIS_URL: redis://redis:6379
+      BACKEND_URL: http://backend:3001
+      PLAYWRIGHT_HEADLESS: ${PLAYWRIGHT_HEADLESS:-true}
+      WORKER_CONCURRENCY: ${WORKER_CONCURRENCY:-1}
+      SESSION_STORAGE_PATH: /app/worker/sessions
+      SCREENSHOT_PATH: /app/worker/screenshots
+      PROFILE_DATA_PATH: /app/worker/profile_data.json
+      NAUKRI_RESUME_PATH: ${NAUKRI_RESUME_PATH:-}
+      GEMINI_API_KEY: ${GEMINI_API_KEY:-}
+      MAX_APPLICATIONS_PER_RUN: ${MAX_APPLICATIONS_PER_RUN:-50}
+    volumes:
+      - .:/app
+      - node_modules:/app/node_modules
+      - worker-sessions:/app/worker/sessions
+      - worker-screenshots:/app/worker/screenshots
+    depends_on:
+      redis:
+        condition: service_healthy
+      backend:
+        condition: service_started
+    # Playwright needs extra shared memory in Linux containers
+    shm_size: "1gb"
+    restart: unless-stopped
+
+  extension:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile.node
+    container_name: aiapply-extension
+    command: ["pnpm", "--filter", "@aiapply/extension", "dev"]
+    environment:
+      # Chrome on the host talks to the API via published port 3001
+      PLASMO_PUBLIC_API_URL: http://localhost:3001
+    volumes:
+      - .:/app
+      - node_modules:/app/node_modules
+    depends_on:
+      backend:
+        condition: service_started
+    restart: unless-stopped
+
+volumes:
+  mongo-data:
+  node_modules:
+  worker-sessions:
+  worker-screenshots:

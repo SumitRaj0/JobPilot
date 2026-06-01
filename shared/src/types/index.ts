@@ -3,8 +3,11 @@ export type { ExtensionPageMetadata } from "./page-metadata.js";
 /** Supported job platforms */
 export type Platform = "naukri" | "linkedin" | "indeed";
 
+export type AutomationMode = "search" | "recommended";
+
 /** User filter preferences from extension */
 export interface JobFilters {
+  mode: AutomationMode;
   role: string;
   experience: string;
   remote: boolean;

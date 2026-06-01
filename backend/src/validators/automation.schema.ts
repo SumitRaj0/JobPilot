@@ -6,7 +6,8 @@ import { pageMetadataSchema } from "./extension.schema.js";
 const platformSchema = z.enum(["naukri", "linkedin"]);
 
 export const jobFiltersSchema = z.object({
-  role: z.string().trim().min(2, "Job title must be at least 2 characters").max(80),
+  mode: z.enum(["search", "recommended"]).default("search"),
+  role: z.string().trim().max(80).default(""),
   experience: z
     .string()
     .trim()
@@ -35,6 +36,21 @@ export const jobFiltersSchema = z.object({
     }),
   easyApplyOnly: z.boolean().default(false),
   fullAuto: z.boolean().default(false),
+}).superRefine((filters, ctx) => {
+  if (filters.mode === "recommended") return;
+  if (!filters.role.trim()) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      message: "Job title is required in search mode",
+      path: ["role"],
+    });
+  } else if (filters.role.trim().length < 2) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      message: "Job title must be at least 2 characters",
+      path: ["role"],
+    });
+  }
 });
 
 export const startAutomationSchema = z.object({
@@ -63,4 +79,15 @@ export const completeAutomationSchema = z.object({
   alreadyApplied: z.number().int().min(0).default(0),
   noApplyButton: z.number().int().min(0).default(0),
   messages: z.array(z.string()).default([]),
+  recommendedStats: z
+    .object({
+      found: z.number().int().min(0),
+      matched: z.number().int().min(0),
+      ready: z.number().int().min(0),
+      applied: z.number().int().min(0),
+      skipped: z.number().int().min(0),
+      failed: z.number().int().min(0),
+      successRate: z.number().min(0).max(100),
+    })
+    .optional(),
 });

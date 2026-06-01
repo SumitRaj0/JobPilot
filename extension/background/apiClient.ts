@@ -99,6 +99,15 @@ export interface BackendAutomationStatus {
     alreadyApplied: number;
     noApplyButton: number;
     messages: string[];
+    recommendedStats?: {
+      found: number;
+      matched: number;
+      ready: number;
+      applied: number;
+      skipped: number;
+      failed: number;
+      successRate: number;
+    };
     finishedAt: string;
   } | null;
   lastRunsByPlatform?: Partial<
@@ -114,6 +123,15 @@ export interface BackendAutomationStatus {
         alreadyApplied: number;
         noApplyButton: number;
         messages: string[];
+        recommendedStats?: {
+          found: number;
+          matched: number;
+          ready: number;
+          applied: number;
+          skipped: number;
+          failed: number;
+          successRate: number;
+        };
         finishedAt: string;
       }
     >

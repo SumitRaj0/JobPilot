@@ -6,15 +6,37 @@ export interface ScrapeInBrowserArgs {
   tupleSelector: string;
   titleSelectors: string;
   max: number;
+  source: "search" | "recommended";
 }
 
 /** Executed inside the browser via page.evaluate — do not import Node APIs here. */
 export function scrapeTuplesInBrowser(
   args: ScrapeInBrowserArgs
 ): (NaukriScrapedJob | null)[] {
-  const cards = Array.from(
-    document.querySelectorAll<HTMLElement>(args.tupleSelector)
-  ).slice(0, args.max);
+  let cards = Array.from(document.querySelectorAll<HTMLElement>(args.tupleSelector)).slice(
+    0,
+    args.max
+  );
+
+  // Recommended feed DOM is often different; fallback from job links.
+  if (cards.length === 0) {
+    const links = Array.from(
+      document.querySelectorAll<HTMLAnchorElement>(
+        'a[href*="job-listings"], a[href*="job-details"], a[href*="-jobs-"]'
+      )
+    ).slice(0, args.max * 2);
+    const seen = new Set<HTMLElement>();
+    for (const a of links) {
+      const card = (a.closest("[data-job-id]") ||
+        a.closest("article") ||
+        a.closest("section") ||
+        a.closest("div")) as HTMLElement | null;
+      if (!card || seen.has(card)) continue;
+      seen.add(card);
+      cards.push(card);
+      if (cards.length >= args.max) break;
+    }
+  }
 
   return cards.map((card, index) => {
     const titleLink =
@@ -28,15 +50,38 @@ export function scrapeTuplesInBrowser(
             a.classList.contains("title"))
         );
       });
+    const titleFromLink = titleLink?.textContent?.trim() ?? "";
+    const titleFromHeading =
+      card
+        .querySelector<HTMLElement>(
+          "h1, h2, h3, h4, [class*='title' i], [class*='jobTitle' i], [class*='designation' i], strong"
+        )
+        ?.textContent?.trim() ?? "";
+    const titleFromAttr =
+      card.getAttribute("data-title")?.trim() ??
+      card.getAttribute("aria-label")?.trim() ??
+      "";
+    const title = [titleFromLink, titleFromHeading, titleFromAttr].find(
+      (t) => t && t.length >= 3
+    );
+    if (!title) return null;
 
-    if (!titleLink) return null;
-
-    const title = titleLink.textContent?.trim();
-    if (!title || title.length < 3) return null;
-
-    let href = titleLink.getAttribute("href") ?? "";
+    let href = titleLink?.getAttribute("href") ?? "";
     if (href && !href.startsWith("http")) {
       href = `https://www.naukri.com${href.startsWith("/") ? href : `/${href}`}`;
+    }
+    if (!href) {
+      const deepLink =
+        card
+          .querySelector<HTMLAnchorElement>(
+            'a[href*="job-listings"], a[href*="job-details"], a[href*="-jobs-"]'
+          )
+          ?.getAttribute("href") ?? "";
+      if (deepLink) {
+        href = deepLink.startsWith("http")
+          ? deepLink
+          : `https://www.naukri.com${deepLink.startsWith("/") ? deepLink : `/${deepLink}`}`;
+      }
     }
 
     const company =
@@ -147,6 +192,7 @@ export function scrapeTuplesInBrowser(
 
     return {
       platform: "naukri" as const,
+      source: args.source,
       jobId,
       title,
       company,
@@ -164,6 +210,15 @@ export function scrapeTuplesInBrowser(
 
 export function scrollPageDown() {
   window.scrollBy(0, 600);
+  const scrollers = Array.from(
+    document.querySelectorAll<HTMLElement>(
+      '[class*="scroll" i], [class*="feed" i], [class*="list" i], main'
+    )
+  );
+  for (const s of scrollers) {
+    const canScroll = s.scrollHeight > s.clientHeight + 50;
+    if (canScroll) s.scrollBy(0, 600);
+  }
 }
 
 export function sampleFirstTupleLinks(selector: string) {

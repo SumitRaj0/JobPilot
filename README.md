@@ -55,6 +55,49 @@ pnpm --filter @aiapply/shared build
 pnpm --filter @aiapply/worker exec playwright install chromium
 ```
 
+### Docker (all services at once)
+
+Start **Redis**, **MongoDB**, **backend**, **worker**, and **extension dev build** with one command:
+
+```powershell
+# Requires Docker Desktop
+pnpm docker:up
+# or detached: pnpm docker:up:detach
+```
+
+| Service   | URL / port                          |
+|-----------|-------------------------------------|
+| API       | http://localhost:3001               |
+| Redis     | localhost:6379                      |
+| MongoDB   | localhost:27017                     |
+
+Optional worker secrets: copy `docker/.env.example` values into the repo root `.env` (Compose reads it for `${GEMINI_API_KEY}` etc.).
+
+**Chrome extension** still loads on your machine (Docker only runs the Plasmo watcher):
+
+1. Wait until `aiapply-extension` logs show the build folder path.
+2. Chrome → `chrome://extensions` → **Load unpacked** → `extension\build\chrome-mv3-dev`
+3. Refresh a Naukri tab; API calls go to `http://localhost:3001`.
+
+Stop everything: `pnpm docker:down`
+
+**First-time Naukri login in Docker (noVNC):**
+
+```powershell
+pnpm docker:up:headed
+```
+
+Open **http://localhost:6080/vnc.html**, start **Auto Apply** from the extension, and log in to Naukri in the visible Chromium window. Sessions persist in the `worker-sessions` volume.
+
+**Production stack** (compiled API + worker, no dev mounts):
+
+```powershell
+pnpm docker:up:prod
+pnpm docker:build:extension   # → extension/build/chrome-mv3-prod
+```
+
+Set `JWT_SECRET` (and optional `GEMINI_API_KEY`) in the repo root `.env` before production runs.
+
 ### Full automation (Redis + worker)
 
 Mock backend queue does **not** feed the worker. For real runs:
@@ -64,7 +107,6 @@ Mock backend queue does **not** feed the worker. For real runs:
 3. `pnpm dev:backend` → `[Redis] Connected`
 4. `pnpm dev:worker` → consumes `automation` queue
 5. Extension **Start Auto Apply** → Chromium opens via Playwright
-```
 
 ## Load the extension in Chrome (required)
 
@@ -110,6 +152,12 @@ Ensure MongoDB and Redis are running before starting backend/worker.
 | `pnpm dev:backend` | API on port 3001 (default) |
 | `pnpm dev:worker` | Queue consumer |
 | `pnpm dev:dashboard` | Next.js on port 3000 |
+| `pnpm docker:up` | Docker Compose: redis + mongo + backend + worker + extension |
+| `pnpm docker:down` | Stop Docker Compose stack |
+| `pnpm docker:logs` | Follow all container logs |
+| `pnpm docker:up:headed` | Dev stack + noVNC worker on port 6080 |
+| `pnpm docker:up:prod` | Production API + worker images |
+| `pnpm docker:build:extension` | Build production extension into `extension/build/` |
 
 ## Documentation
 

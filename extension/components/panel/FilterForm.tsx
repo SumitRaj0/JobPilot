@@ -1,10 +1,11 @@
-import type { JobFilters } from "@aiapply/shared";
+import type { JobFilters, Platform } from "@aiapply/shared";
 import type { ReactNode } from "react";
 
 import { ResetIcon } from "~components/panel/icons";
 import type { FilterFieldKey } from "~lib/validation/jobFilters";
 
 interface FilterFormProps {
+  platform: Platform;
   filters: JobFilters;
   disabled: boolean;
   errors?: Partial<Record<FilterFieldKey, string>>;
@@ -21,7 +22,13 @@ const DATE_OPTIONS = [
   { value: "30", label: "Past month" },
 ];
 
+const MODE_OPTIONS: Array<{ value: JobFilters["mode"]; label: string }> = [
+  { value: "search", label: "Search Jobs" },
+  { value: "recommended", label: "Recommended Jobs" },
+];
+
 export function FilterForm({
+  platform,
   filters,
   disabled,
   errors = {},
@@ -29,6 +36,8 @@ export function FilterForm({
   onClearError,
   onReset,
 }: FilterFormProps) {
+  const supportsMode = platform === "naukri";
+  const isRecommended = supportsMode && filters.mode === "recommended";
   const patch = (field: FilterFieldKey, value: Partial<JobFilters>) => {
     onChange(value);
     onClearError?.(field);
@@ -54,18 +63,44 @@ export function FilterForm({
         ) : null}
       </div>
       <div className="aiapply-space-y-3">
-        <Field label="Role / job title" required error={errors.role}>
-          <input
-            type="text"
-            className={`aiapply-input ${errors.role ? "aiapply-input--error" : ""}`}
-            placeholder="e.g. Full Stack Developer"
-            value={filters.role}
-            disabled={disabled}
-            aria-invalid={Boolean(errors.role)}
-            aria-describedby={errors.role ? "aiapply-err-role" : undefined}
-            onChange={(e) => patch("role", { role: e.target.value })}
-          />
-        </Field>
+        {supportsMode && (
+          <div className="aiapply-mode-segment" role="tablist" aria-label="Job source mode">
+            {MODE_OPTIONS.map((opt) => (
+              <button
+                key={opt.value}
+                type="button"
+                role="tab"
+                aria-selected={filters.mode === opt.value}
+                className={`aiapply-mode-segment-btn ${filters.mode === opt.value ? "aiapply-mode-segment-btn--active" : ""}`}
+                disabled={disabled}
+                onClick={() => onChange({ mode: opt.value })}
+              >
+                {opt.label}
+              </button>
+            ))}
+          </div>
+        )}
+
+        {!isRecommended && (
+          <Field label="Role / job title" required error={errors.role}>
+            <input
+              type="text"
+              className={`aiapply-input ${errors.role ? "aiapply-input--error" : ""}`}
+              placeholder="e.g. Full Stack Developer"
+              value={filters.role}
+              disabled={disabled}
+              aria-invalid={Boolean(errors.role)}
+              aria-describedby={errors.role ? "aiapply-err-role" : undefined}
+              onChange={(e) => patch("role", { role: e.target.value })}
+            />
+          </Field>
+        )}
+
+        {isRecommended && (
+          <p className="aiapply-mode-note" role="status">
+            Recommended mode uses Naukri suggestions and keeps your current role profile context.
+          </p>
+        )}
 
         <Field label="Experience" error={errors.experience}>
           <input

@@ -1,0 +1,79 @@
+# Production stack — compiled backend + worker, no hot-reload mounts.
+#
+#   pnpm docker:up:prod
+#   pnpm docker:build:extension   # writes extension/build/chrome-mv3-prod
+
+name: aiapply-prod
+
+services:
+  redis:
+    image: redis:7-alpine
+    container_name: aiapply-prod-redis
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+    restart: unless-stopped
+
+  mongo:
+    image: mongo:7
+    container_name: aiapply-prod-mongo
+    volumes:
+      - mongo-prod-data:/data/db
+    restart: unless-stopped
+
+  backend:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile.prod.backend
+    container_name: aiapply-prod-backend
+    ports:
+      - "3001:3001"
+    environment:
+      NODE_ENV: production
+      PORT: 3001
+      REDIS_URL: redis://redis:6379
+      MONGODB_URI: mongodb://mongo:27017/aiapply
+      DEV_MOCK_QUEUE: "false"
+      JWT_SECRET: ${JWT_SECRET:-change-me-in-production}
+      OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+      CORS_ORIGIN: ${CORS_ORIGIN:-}
+    depends_on:
+      redis:
+        condition: service_healthy
+      mongo:
+        condition: service_started
+    restart: unless-stopped
+
+  worker:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile.prod.worker
+    container_name: aiapply-prod-worker
+    environment:
+      NODE_ENV: production
+      REDIS_URL: redis://redis:6379
+      BACKEND_URL: http://backend:3001
+      PLAYWRIGHT_HEADLESS: ${PLAYWRIGHT_HEADLESS:-true}
+      WORKER_CONCURRENCY: ${WORKER_CONCURRENCY:-1}
+      SESSION_STORAGE_PATH: /app/worker/sessions
+      SCREENSHOT_PATH: /app/worker/screenshots
+      PROFILE_DATA_PATH: /app/worker/profile_data.json
+      GEMINI_API_KEY: ${GEMINI_API_KEY:-}
+      MAX_APPLICATIONS_PER_RUN: ${MAX_APPLICATIONS_PER_RUN:-50}
+    volumes:
+      - worker-prod-sessions:/app/worker/sessions
+      - worker-prod-screenshots:/app/worker/screenshots
+    depends_on:
+      redis:
+        condition: service_healthy
+      backend:
+        condition: service_started
+    shm_size: "1gb"
+    restart: unless-stopped
+
+volumes:
+  mongo-prod-data:
+  worker-prod-sessions:
+  worker-prod-screenshots:

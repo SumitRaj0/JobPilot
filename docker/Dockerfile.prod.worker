@@ -1,0 +1,39 @@
+# Production worker image (Playwright + Chromium)
+FROM mcr.microsoft.com/playwright:v1.49.1-noble AS builder
+
+RUN corepack enable && corepack prepare pnpm@9.15.0 --activate
+WORKDIR /app
+
+COPY package.json pnpm-lock.yaml pnpm-workspace.yaml tsconfig.base.json ./
+COPY shared ./shared
+COPY worker ./worker
+COPY backend/package.json backend/tsconfig.json ./backend/
+COPY extension/package.json extension/tsconfig.json ./extension/
+COPY dashboard/package.json dashboard/tsconfig.json ./dashboard/
+
+RUN pnpm install --frozen-lockfile
+RUN pnpm --filter @aiapply/shared build
+RUN pnpm --filter @aiapply/worker build
+
+FROM mcr.microsoft.com/playwright:v1.49.1-noble AS runner
+
+RUN apt-get update && apt-get install -y --no-install-recommends netcat-openbsd \
+  && rm -rf /var/lib/apt/lists/*
+
+WORKDIR /app
+
+COPY --from=builder /app/package.json /app/pnpm-lock.yaml /app/pnpm-workspace.yaml ./
+COPY --from=builder /app/node_modules ./node_modules
+COPY --from=builder /app/shared/package.json ./shared/package.json
+COPY --from=builder /app/shared/dist ./shared/dist
+COPY --from=builder /app/worker/package.json ./worker/package.json
+COPY --from=builder /app/worker/dist ./worker/dist
+
+COPY docker/entrypoint-prod-worker.sh /entrypoint.sh
+RUN sed -i 's/\r$//' /entrypoint.sh && chmod +x /entrypoint.sh
+
+ENV NODE_ENV=production
+RUN mkdir -p /app/worker/sessions /app/worker/screenshots
+
+ENTRYPOINT ["/entrypoint.sh"]
+CMD ["node", "worker/dist/index.js"]

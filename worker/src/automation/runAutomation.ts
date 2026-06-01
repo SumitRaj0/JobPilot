@@ -13,6 +13,7 @@ import {
 export interface AutomationJobPayload {
   userId: string;
   platform: Platform;
+  mode?: import("@aiapply/shared").AutomationMode;
   filters: import("@aiapply/shared").JobFilters;
   pageMetadata?: import("@aiapply/shared").ExtensionPageMetadata;
   enqueuedAt: string;
@@ -25,6 +26,7 @@ export async function runAutomation(
   const logger = new AutomationLogger("run", data.platform, jobId);
   logger.info("Job started", {
     user: data.userId,
+    mode: data.mode ?? data.filters.mode,
     role: data.filters.role,
     enqueuedAt: data.enqueuedAt,
   });

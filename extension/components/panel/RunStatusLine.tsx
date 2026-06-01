@@ -19,6 +19,14 @@ export function RunStatusLine({ lastRun }: RunStatusLineProps) {
       >
         {summary.line}
       </p>
+      {summary.recommendedMetrics && (
+        <p className="aiapply-m-0 aiapply-mt-2 aiapply-text-[11px] aiapply-text-slate-400">
+          Recommended Jobs Found: {summary.recommendedMetrics.found} · Matched
+          Filters: {summary.recommendedMetrics.matched} · Ready To Apply:{" "}
+          {summary.recommendedMetrics.ready} · Applied:{" "}
+          {summary.recommendedMetrics.applied}
+        </p>
+      )}
     </div>
   );
 }

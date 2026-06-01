@@ -1,0 +1,13 @@
+**/node_modules
+**/.git
+**/dist
+**/build
+**/.plasmo
+**/*.tsbuildinfo
+**/screenshots
+**/sessions
+**/.env
+**/.env.local
+ai-apply.zip
+dashboard/.next
+**/.turbo

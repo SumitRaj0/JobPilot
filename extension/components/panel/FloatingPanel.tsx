@@ -183,6 +183,8 @@ export function FloatingPanel({ platform }: FloatingPanelProps) {
     }
 
     const sanitized = sanitizeJobFilters(filters);
+    const effective =
+      platform === "naukri" ? sanitized : { ...sanitized, mode: "search" as const };
     if (sanitized.role !== filters.role) {
       updateFilters({ role: sanitized.role });
     }
@@ -194,7 +196,7 @@ export function FloatingPanel({ platform }: FloatingPanelProps) {
     setLastRun(null);
     try {
       const payload: StartAutomationPayload = {
-        filters: sanitized,
+        filters: effective,
         platform,
         pageMetadata: collectPageMetadata() ?? undefined,
       };
@@ -302,6 +304,7 @@ export function FloatingPanel({ platform }: FloatingPanelProps) {
                 </p>
               )}
               <FilterForm
+                platform={platform}
                 filters={filters}
                 disabled={running || busy}
                 errors={fieldErrors}

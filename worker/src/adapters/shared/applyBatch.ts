@@ -4,6 +4,7 @@ export interface ApplyBatchResult {
   failed: number;
   alreadyApplied: number;
   noApplyButton: number;
+  processedJobIds: string[];
   messages: string[];
 }
 
@@ -14,6 +15,7 @@ export function emptyApplyBatch(): ApplyBatchResult {
     failed: 0,
     alreadyApplied: 0,
     noApplyButton: 0,
+    processedJobIds: [],
     messages: [],
   };
 }
@@ -28,6 +30,7 @@ export function mergeApplyBatch(
     failed: a.failed + b.failed,
     alreadyApplied: a.alreadyApplied + b.alreadyApplied,
     noApplyButton: a.noApplyButton + b.noApplyButton,
+    processedJobIds: [...a.processedJobIds, ...b.processedJobIds],
     messages: [...a.messages, ...b.messages],
   };
 }

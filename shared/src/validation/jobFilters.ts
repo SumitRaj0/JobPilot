@@ -9,6 +9,7 @@ export interface FilterValidationResult {
 }
 
 const ALLOWED_DATE_POSTED = new Set(["", "1", "3", "7", "30"]);
+const ALLOWED_MODES = new Set(["search", "recommended"]);
 
 /** True if text looks like a negative amount (e.g. -5, - 10 LPA). Allows ranges like 2-5. */
 export function textHasNegativeNumber(text: string): boolean {
@@ -22,12 +23,21 @@ export function textHasNegativeNumber(text: string): boolean {
 export function validateJobFilters(filters: JobFilters): FilterValidationResult {
   const errors: Partial<Record<FilterFieldKey, string>> = {};
   const warnings: string[] = [];
+  const mode = filters.mode ?? "search";
+
+  if (!ALLOWED_MODES.has(mode)) {
+    errors.mode = "Invalid automation mode";
+  }
 
   const role = filters.role.trim();
-  if (!role) {
-    errors.role = "Job title is required";
-  } else if (role.length < 2) {
-    errors.role = "Enter at least 2 characters";
+  if (mode === "search") {
+    if (!role) {
+      errors.role = "Job title is required";
+    } else if (role.length < 2) {
+      errors.role = "Enter at least 2 characters";
+    } else if (role.length > 80) {
+      errors.role = "Job title is too long (max 80 characters)";
+    }
   } else if (role.length > 80) {
     errors.role = "Job title is too long (max 80 characters)";
   }
@@ -70,6 +80,7 @@ export function validateJobFilters(filters: JobFilters): FilterValidationResult 
 export function sanitizeJobFilters(filters: JobFilters): JobFilters {
   return {
     ...filters,
+    mode: filters.mode === "recommended" ? "recommended" : "search",
     role: filters.role.trim(),
     experience: filters.experience?.trim() ?? "",
     salary: filters.salary?.trim() || undefined,

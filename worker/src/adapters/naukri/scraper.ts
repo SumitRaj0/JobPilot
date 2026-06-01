@@ -10,10 +10,11 @@ import {
 } from "./scrapeInBrowser.js";
 import { env } from "../../config/env.js";
 import { jobTitleMatchesRole } from "./roleMatch.js";
+import { NaukriSelectors } from "./selectors.js";
 import type { NaukriScrapedJob } from "./types.js";
 
 /** Primary Naukri SRP job card selector. */
-const JOB_TUPLE_SELECTOR = ".srp-jobtuple-wrapper";
+const JOB_TUPLE_SELECTOR = NaukriSelectors.search.jobTuple;
 
 const TITLE_LINK_SELECTORS = [
   "a.title",
@@ -26,6 +27,8 @@ const TITLE_LINK_SELECTORS = [
   '[class*="title"] a',
   "a[href*='/job/']",
 ].join(", ");
+
+const RECOMMENDED_URL = "https://www.naukri.com/mnjuser/recommendedjobs";
 
 export async function loadMoreJobsOnPage(
   page: Page,
@@ -97,7 +100,8 @@ export async function scrapeJobCards(
   page: Page,
   filters: JobFilters,
   logger: AutomationLogger,
-  limit = env.NAUKRI_SCRAPE_LIMIT
+  limit = env.NAUKRI_SCRAPE_LIMIT,
+  source: "search" | "recommended" = "search"
 ): Promise<NaukriScrapedJob[]> {
   if (page.isClosed()) {
     logger.warn("Page closed before scrape");
@@ -115,6 +119,7 @@ export async function scrapeJobCards(
       tupleSelector: JOB_TUPLE_SELECTOR,
       titleSelectors: TITLE_LINK_SELECTORS,
       max: limit,
+      source,
     })
     .catch((err) => {
       logger.warn("DOM scrape evaluate failed", { err });
@@ -135,18 +140,20 @@ export async function scrapeJobCards(
     });
   }
 
-  const roleMatched = jobs.filter((j) =>
-    jobTitleMatchesRole(j.title, filters.role)
-  );
-  if (roleMatched.length < jobs.length) {
-    logger.info("Role relevance filter", {
-      before: jobs.length,
-      after: roleMatched.length,
-      role: filters.role.trim(),
-    });
+  let filtered = jobs;
+  if (filters.mode === "search" && filters.role.trim()) {
+    const roleMatched = jobs.filter((j) =>
+      jobTitleMatchesRole(j.title, filters.role)
+    );
+    if (roleMatched.length < jobs.length) {
+      logger.info("Role relevance filter", {
+        before: jobs.length,
+        after: roleMatched.length,
+        role: filters.role.trim(),
+      });
+    }
+    filtered = roleMatched.length > 0 ? roleMatched : jobs;
   }
-
-  let filtered = roleMatched.length > 0 ? roleMatched : jobs;
   if (filters.easyApplyOnly) {
     const withEasyBadge = filtered.filter((j) => j.easyApply);
     const inPortalApply = filtered.filter((j) => !j.externalApply);
@@ -180,6 +187,64 @@ export async function scrapeJobCards(
     easyApplyOnly: filters.easyApplyOnly,
   });
   return filtered;
+}
+
+export async function navigateToRecommended(
+  page: Page,
+  logger: AutomationLogger
+): Promise<void> {
+  await page.goto(RECOMMENDED_URL, { waitUntil: "domcontentloaded", timeout: 45_000 });
+  await page.waitForLoadState("networkidle", { timeout: 15_000 }).catch(() => undefined);
+  await page
+    .locator(JOB_TUPLE_SELECTOR)
+    .first()
+    .waitFor({ state: "attached", timeout: 12_000 })
+    .catch(() => undefined);
+  logger.info("Recommended jobs page loaded", { url: page.url() });
+}
+
+export async function scrollUntilNoNewJobs(
+  page: Page,
+  logger: AutomationLogger,
+  options?: { maxScrolls?: number; maxJobs?: number }
+): Promise<void> {
+  const maxScrolls = options?.maxScrolls ?? env.MAX_RECOMMENDED_SCROLLS;
+  const maxJobs = options?.maxJobs ?? env.MAX_RECOMMENDED_JOBS;
+
+  let prevCount = 0;
+  let stableRounds = 0;
+
+  for (let i = 0; i < maxScrolls; i++) {
+    if (page.isClosed()) return;
+    await scrollForMoreJobs(page, logger);
+    await humanDelay(500, 900);
+
+    const count = await page.locator(JOB_TUPLE_SELECTOR).count();
+    if (count >= maxJobs) break;
+    if (count <= prevCount) {
+      stableRounds++;
+      if (stableRounds >= 3) break;
+    } else {
+      stableRounds = 0;
+      prevCount = count;
+    }
+  }
+
+  logger.info("Recommended scroll finished", {
+    cards: await page.locator(JOB_TUPLE_SELECTOR).count().catch(() => 0),
+    maxScrolls,
+    maxJobs,
+  });
+}
+
+export async function scrapeRecommendedJobCards(
+  page: Page,
+  filters: JobFilters,
+  logger: AutomationLogger,
+  limit = env.NAUKRI_SCRAPE_LIMIT
+): Promise<NaukriScrapedJob[]> {
+  await scrollUntilNoNewJobs(page, logger, { maxJobs: limit * 2 });
+  return scrapeJobCards(page, filters, logger, limit, "recommended");
 }
 
 export async function scrollForMoreJobs(

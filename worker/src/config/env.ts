@@ -27,6 +27,9 @@ const envSchema = z.object({
   AUTOMATION_MAX_RUN_MS: z.coerce.number().default(estimateAutomationRunMs()),
   NAUKRI_SCRAPE_LIMIT: z.coerce.number().default(60),
   NAUKRI_SCROLL_ROUNDS: z.coerce.number().default(5),
+  MAX_RECOMMENDED_SCROLLS: z.coerce.number().default(18),
+  MAX_RECOMMENDED_JOBS: z.coerce.number().default(120),
+  RECENT_JOB_DEDUPE_TTL_SEC: z.coerce.number().default(86_400),
   NAUKRI_FAST_APPLY: z
     .enum(["true", "false"])
     .default("true")

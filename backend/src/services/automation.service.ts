@@ -29,6 +29,15 @@ export interface AutomationLastRun {
   alreadyApplied: number;
   noApplyButton: number;
   messages: string[];
+  recommendedStats?: {
+    found: number;
+    matched: number;
+    ready: number;
+    applied: number;
+    skipped: number;
+    failed: number;
+    successRate: number;
+  };
   finishedAt: string;
 }
 
@@ -66,6 +75,11 @@ export class AutomationService {
     filters: JobFilters;
     pageMetadata?: ExtensionPageMetadata;
   }) {
+    const effectiveFilters: JobFilters =
+      input.platform === "naukri"
+        ? input.filters
+        : { ...input.filters, mode: "search" };
+
     const sessions = userSessions(input.userId);
     const runs = userLastRuns(input.userId);
     if (sessions.has(input.platform)) {
@@ -73,18 +87,19 @@ export class AutomationService {
     }
 
     const adapter = getPlatformAdapter(input.platform);
-    const errors = adapter.validateFilters(input.filters);
+    const errors = adapter.validateFilters(effectiveFilters);
 
     if (errors.length > 0) {
       throw new AppError(400, "Invalid filters", errors);
     }
 
-    const searchPayload = adapter.buildSearchPayload(input.filters);
+    const searchPayload = adapter.buildSearchPayload(effectiveFilters);
 
     const jobData: AutomationJobData = {
       userId: input.userId,
       platform: input.platform,
-      filters: input.filters,
+      mode: effectiveFilters.mode,
+      filters: effectiveFilters,
       pageMetadata: input.pageMetadata,
       enqueuedAt: new Date().toISOString(),
     };
@@ -208,6 +223,15 @@ export class AutomationService {
       alreadyApplied: number;
       noApplyButton: number;
       messages: string[];
+      recommendedStats?: {
+        found: number;
+        matched: number;
+        ready: number;
+        applied: number;
+        skipped: number;
+        failed: number;
+        successRate: number;
+      };
     }
   ) {
     const sessions = runningSessions.get(userId);

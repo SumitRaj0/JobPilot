@@ -77,6 +77,12 @@ export interface RunStatusSummary {
   line: string;
   tone: RunStatusTone;
   colorClass: string;
+  recommendedMetrics?: {
+    found: number;
+    matched: number;
+    ready: number;
+    applied: number;
+  } | null;
 }
 
 /** Parse apply target from worker messages. */
@@ -122,6 +128,18 @@ function toneColorClass(tone: RunStatusTone): string {
   }
 }
 
+function parseRecommendedMetrics(messages: string[]): RunStatusSummary["recommendedMetrics"] {
+  const line = messages.find((m) => /^Recommended stats — /i.test(m));
+  if (!line) return null;
+  const nums = [...line.matchAll(/(found|matched|ready|applied)\s+(\d+)/gi)];
+  const map: Record<string, number> = {};
+  for (const m of nums) map[m[1]!.toLowerCase()] = Number.parseInt(m[2]!, 10);
+  if ([map.found, map.matched, map.ready, map.applied].some((v) => typeof v !== "number")) {
+    return null;
+  }
+  return { found: map.found, matched: map.matched, ready: map.ready, applied: map.applied };
+}
+
 /**
  * Single-line task status for the panel (color: red if errors, green if all OK, else neutral).
  */
@@ -152,6 +170,16 @@ export function buildRunStatusSummary(run: AutomationLastRun): RunStatusSummary 
     line += ` · ${run.noApplyButton} no apply button`;
   }
 
+  const recommendedMetrics =
+    run.recommendedStats
+      ? {
+          found: run.recommendedStats.found,
+          matched: run.recommendedStats.matched,
+          ready: run.recommendedStats.ready,
+          applied: run.recommendedStats.applied,
+        }
+      : parseRecommendedMetrics(run.messages ?? []);
+
   return {
     applied,
     failed,
@@ -161,5 +189,6 @@ export function buildRunStatusSummary(run: AutomationLastRun): RunStatusSummary 
     tone,
     colorClass: toneColorClass(tone),
     line,
+    recommendedMetrics,
   };
 }

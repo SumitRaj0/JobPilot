@@ -1,0 +1,32 @@
+# Dev worker + virtual display + noVNC (login / CAPTCHA in browser)
+FROM mcr.microsoft.com/playwright:v1.49.1-noble
+
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    netcat-openbsd \
+    xvfb \
+    x11vnc \
+    novnc \
+    websockify \
+    fluxbox \
+  && rm -rf /var/lib/apt/lists/*
+
+RUN corepack enable && corepack prepare pnpm@9.15.0 --activate
+
+WORKDIR /app
+
+COPY package.json pnpm-lock.yaml pnpm-workspace.yaml tsconfig.base.json ./
+COPY shared/package.json shared/tsconfig.json ./shared/
+COPY backend/package.json backend/tsconfig.json ./backend/
+COPY worker/package.json worker/tsconfig.json ./worker/
+COPY extension/package.json extension/tsconfig.json ./extension/
+COPY dashboard/package.json dashboard/tsconfig.json ./dashboard/
+
+RUN pnpm install --frozen-lockfile
+
+COPY docker/entrypoint-worker.sh /entrypoint-worker.sh
+COPY docker/entrypoint-headed.sh /entrypoint.sh
+RUN sed -i 's/\r$//' /entrypoint-worker.sh /entrypoint.sh \
+  && chmod +x /entrypoint-worker.sh /entrypoint.sh
+
+ENTRYPOINT ["/entrypoint.sh"]
+CMD ["pnpm", "--filter", "@aiapply/worker", "dev"]

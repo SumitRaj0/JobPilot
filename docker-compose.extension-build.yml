@@ -1,0 +1,23 @@
+# One-shot production extension build → host extension/build/
+#
+#   pnpm docker:build:extension
+
+services:
+  extension-build:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile.extension-build
+      args:
+        PLASMO_PUBLIC_API_URL: ${PLASMO_PUBLIC_API_URL:-http://localhost:3001}
+    container_name: aiapply-extension-build
+    volumes:
+      - ./extension/build:/app/extension/build
+    command:
+      - sh
+      - -c
+      - |
+        set -e
+        pnpm --filter @aiapply/shared build
+        pnpm --filter @aiapply/extension build
+        echo "Extension build complete. Load:"
+        ls -d /app/extension/build/chrome-mv3-* 2>/dev/null || ls /app/extension/build

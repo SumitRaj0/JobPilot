@@ -11,7 +11,17 @@
     "dev:dashboard": "pnpm --filter @aiapply/dashboard dev",
     "build": "pnpm -r build",
     "lint": "pnpm -r lint",
-    "typecheck": "pnpm -r typecheck"
+    "typecheck": "pnpm -r typecheck",
+    "docker:up": "docker compose up --build",
+    "docker:up:detach": "docker compose up --build -d",
+    "docker:down": "docker compose down",
+    "docker:logs": "docker compose logs -f",
+    "docker:ps": "docker compose ps",
+    "docker:up:headed": "docker compose -f docker-compose.yml -f docker-compose.headed.yml up --build",
+    "docker:up:prod": "docker compose -f docker-compose.prod.yml up --build",
+    "docker:up:prod:detach": "docker compose -f docker-compose.prod.yml up --build -d",
+    "docker:down:prod": "docker compose -f docker-compose.prod.yml down",
+    "docker:build:extension": "docker compose -f docker-compose.extension-build.yml run --rm extension-build"
   },
   "engines": {
     "node": ">=20"

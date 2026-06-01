@@ -1,0 +1,15 @@
+# Headed worker overlay — virtual display + noVNC for Naukri login / CAPTCHA.
+#
+#   pnpm docker:up:headed
+#   Open http://localhost:6080/vnc.html then trigger Start Auto Apply
+
+services:
+  worker:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile.worker-headed
+    ports:
+      - "6080:6080"
+    environment:
+      PLAYWRIGHT_HEADLESS: "false"
+      DISPLAY: ":99"

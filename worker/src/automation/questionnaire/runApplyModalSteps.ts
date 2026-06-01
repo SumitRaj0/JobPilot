@@ -18,7 +18,7 @@ async function linkedInApplySucceeded(page: Page): Promise<boolean> {
 
 /**
  * Multi-step apply modal: resolve questions on each screen, then Next or Submit.
- * @returns true if submitted or no modal; false if questionnaire unresolved.
+ * @returns true only when flow reaches a submit/complete signal.
  */
 export async function runApplyModalSteps(
   page: Page,
@@ -34,10 +34,7 @@ export async function runApplyModalSteps(
   const modal = page.locator(config.playwright.container).first();
   const hasModal = await modal.isVisible({ timeout: 4000 }).catch(() => false);
   if (!hasModal) {
-    if (config.platform === "linkedin") {
-      return false;
-    }
-    return true;
+    return false;
   }
 
   if (env.resumePath && existsSync(env.resumePath)) {
@@ -104,29 +101,20 @@ export async function runApplyModalSteps(
     }
 
     if (!(await modal.isVisible({ timeout: 800 }).catch(() => false))) {
-      if (config.platform === "linkedin") {
-        return false;
-      }
-      return true;
-    }
-
-    if (config.platform === "linkedin") {
-      logger.warn(`${config.platform} apply step stalled — no Next/Submit found`, {
-        step,
-      });
+      // Modal disappeared without explicit submit signal — caller should verify final state.
       return false;
     }
 
-    logger.info("Apply modal open with no Next/Submit — treating as complete", {
+    logger.warn(`${config.platform} apply step stalled — no Next/Submit found`, {
       platform: config.platform,
       step,
     });
-    return true;
+    return false;
   }
 
   logger.warn("Apply modal exceeded max steps", { platform: config.platform });
   if (config.platform === "linkedin" && (await linkedInApplySucceeded(page))) {
     return true;
   }
-  return config.platform !== "linkedin";
+  return false;
 }

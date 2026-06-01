@@ -1,8 +1,14 @@
-import type { ExtensionPageMetadata, JobFilters, Platform } from "@aiapply/shared";
+import type {
+  AutomationMode,
+  ExtensionPageMetadata,
+  JobFilters,
+  Platform,
+} from "@aiapply/shared";
 
 export interface AutomationJobData {
   userId: string;
   platform: Platform;
+  mode: AutomationMode;
   filters: JobFilters;
   pageMetadata?: ExtensionPageMetadata;
   enqueuedAt: string;

@@ -13,6 +13,15 @@ export interface AutomationRunResult {
   /** No Naukri Apply / company-site only — not counted as failed. */
   noApplyButton: number;
   messages: string[];
+  recommendedStats?: {
+    found: number;
+    matched: number;
+    ready: number;
+    applied: number;
+    skipped: number;
+    failed: number;
+    successRate: number;
+  };
 }
 
 export interface RunContext {

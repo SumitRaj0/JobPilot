@@ -27,7 +27,7 @@ import { naukriQuestionnaireConfig } from "./questionnaireConfig.js";
 import { NaukriSelectors } from "./selectors.js";
 import type { NaukriScrapedJob } from "./types.js";
 
-const JOB_TUPLE_SELECTOR = ".srp-jobtuple-wrapper";
+const JOB_TUPLE_SELECTOR = NaukriSelectors.search.jobTuple;
 
 const TUPLE_APPLY_SELECTORS = [
   "button:has-text('Apply')",
@@ -88,6 +88,7 @@ export async function applyToJobs(
     failed: 0,
     alreadyApplied: 0,
     noApplyButton: 0,
+    processedJobIds: [],
     messages: [],
   };
 
@@ -126,6 +127,7 @@ export async function applyToJobs(
 
     if (job.alreadyApplied) {
       result.alreadyApplied++;
+      result.processedJobIds.push(job.jobId);
       logger.info("Already applied (list card)", {
         title: job.title,
         company: job.company,
@@ -151,10 +153,12 @@ export async function applyToJobs(
     switch (outcome) {
       case "applied":
         result.applied++;
+        result.processedJobIds.push(job.jobId);
         logger.info("Applied", { title: job.title, company: job.company });
         break;
       case "already_applied":
         result.alreadyApplied++;
+        result.processedJobIds.push(job.jobId);
         logger.info("Already applied — skipped", {
           title: job.title,
           company: job.company,
@@ -163,6 +167,7 @@ export async function applyToJobs(
         break;
       case "no_apply_button":
         result.noApplyButton++;
+        result.processedJobIds.push(job.jobId);
         logger.info("No apply button — skipped", {
           title: job.title,
           company: job.company,
@@ -170,6 +175,7 @@ export async function applyToJobs(
         break;
       case "error":
         result.failed++;
+        result.processedJobIds.push(job.jobId);
         break;
       case "aborted":
         result.messages.push("Stopped from panel — apply loop halted");
@@ -320,7 +326,9 @@ async function applySingleJob(
     if (await isRunAborted(ctx)) return "aborted";
     const submitted = await completeApplyFlow(page, logger, ctx);
     await returnToSearchList(page, searchListUrl, logger);
-    return submitted ? "applied" : "no_apply_button";
+    if (submitted) return "applied";
+    if (await confirmAppliedOnList(page, job)) return "applied";
+    return "no_apply_button";
   } catch (err) {
     await returnToSearchList(page, searchListUrl, logger).catch(() => undefined);
     throw err;
@@ -366,7 +374,9 @@ async function applyViaJobPage(
   if (await isRunAborted(ctx)) return "aborted";
   const submitted = await completeApplyFlow(page, logger, ctx);
   await returnToSearchList(page, searchListUrl, logger);
-  return submitted ? "applied" : "no_apply_button";
+  if (submitted) return "applied";
+  if (await confirmAppliedOnList(page, job)) return "applied";
+  return "no_apply_button";
 }
 
 async function dismissNaukriOverlays(page: Page): Promise<void> {
@@ -399,6 +409,14 @@ async function completeApplyFlow(
     .isVisible({ timeout: 5000 })
     .catch(() => false);
 
+  if (!modalVisible) {
+    const oneClickApplied = await waitForNaukriApplyConfirmed(page);
+    if (!oneClickApplied) {
+      logger.warn("Apply click did not reach submit confirmation");
+    }
+    return oneClickApplied;
+  }
+
   await uploadResumeIfNeeded(page, logger);
   if (await isRunAborted(ctx)) return false;
   const stepsOk = await runApplyModalSteps(page, naukriQuestionnaireConfig, logger, {
@@ -411,10 +429,39 @@ async function completeApplyFlow(
     }
     return false;
   }
+
+  const confirmed = await waitForNaukriApplyConfirmed(page);
+  if (!confirmed) {
+    logger.warn("Submit clicked but no success confirmation detected");
+  }
   if (modalVisible) {
     await closeModalIfOpen(page);
   }
-  return true;
+  return confirmed;
+}
+
+async function waitForNaukriApplyConfirmed(page: Page): Promise<boolean> {
+  const submittedText = page
+    .getByText(/application submitted|applied successfully|you have applied|already applied/i)
+    .first();
+  if (await submittedText.isVisible({ timeout: 5000 }).catch(() => false)) {
+    return true;
+  }
+
+  const state = await page.evaluate(detectPageApplyState).catch(() => null);
+  return state === "already_applied";
+}
+
+async function confirmAppliedOnList(
+  page: Page,
+  job: NaukriScrapedJob
+): Promise<boolean> {
+  for (let i = 0; i < 4; i++) {
+    const state = await readCardState(page, job);
+    if (state === "already_applied") return true;
+    await humanDelay(600, 1000);
+  }
+  return false;
 }
 
 async function tryClickApplyOnTuple(
