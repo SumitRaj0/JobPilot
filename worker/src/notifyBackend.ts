@@ -26,6 +26,7 @@ export async function notifyJobComplete(
         alreadyApplied: result.alreadyApplied,
         noApplyButton: result.noApplyButton,
         messages: result.messages,
+        filterBreakdown: result.filterBreakdown,
         recommendedStats: result.recommendedStats,
       }),
     });

@@ -1,5 +1,5 @@
 # Playwright worker (Chromium preinstalled in base image)
-FROM mcr.microsoft.com/playwright:v1.49.1-noble
+FROM mcr.microsoft.com/playwright:v1.60.0-noble
 
 RUN apt-get update && apt-get install -y --no-install-recommends \
     netcat-openbsd \
@@ -15,8 +15,6 @@ COPY backend/package.json backend/tsconfig.json ./backend/
 COPY worker/package.json worker/tsconfig.json ./worker/
 COPY extension/package.json extension/tsconfig.json ./extension/
 COPY dashboard/package.json dashboard/tsconfig.json ./dashboard/
-
-RUN pnpm install --frozen-lockfile
 
 COPY docker/entrypoint-worker.sh /entrypoint.sh
 RUN sed -i 's/\r$//' /entrypoint.sh && chmod +x /entrypoint.sh

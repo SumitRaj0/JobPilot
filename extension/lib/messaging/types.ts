@@ -1,4 +1,9 @@
-import type { ExtensionPageMetadata, JobFilters, Platform } from "@aiapply/shared";
+import type {
+  ExtensionPageMetadata,
+  JobFilters,
+  NaukriFilterBreakdown,
+  Platform,
+} from "@aiapply/shared";
 
 export type MessageType =
   | "PING"
@@ -40,6 +45,7 @@ export interface AutomationLastRun {
   alreadyApplied: number;
   noApplyButton: number;
   messages: string[];
+  filterBreakdown?: NaukriFilterBreakdown;
   recommendedStats?: {
     found: number;
     matched: number;

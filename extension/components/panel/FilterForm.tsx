@@ -114,6 +114,32 @@ export function FilterForm({
           />
         </Field>
 
+        <Field label="Location" error={errors.location}>
+          <input
+            type="text"
+            className={`aiapply-input ${errors.location ? "aiapply-input--error" : ""}`}
+            placeholder="e.g. Bangalore, Pune, Remote"
+            value={filters.location ?? ""}
+            disabled={disabled}
+            aria-invalid={Boolean(errors.location)}
+            onChange={(e) => patch("location", { location: e.target.value })}
+          />
+        </Field>
+
+        <Field label="Exclude keywords" error={errors.excludeKeywords}>
+          <input
+            type="text"
+            className={`aiapply-input ${errors.excludeKeywords ? "aiapply-input--error" : ""}`}
+            placeholder="e.g. sales, support, intern"
+            value={filters.excludeKeywords ?? ""}
+            disabled={disabled}
+            aria-invalid={Boolean(errors.excludeKeywords)}
+            onChange={(e) =>
+              patch("excludeKeywords", { excludeKeywords: e.target.value })
+            }
+          />
+        </Field>
+
         <div className="aiapply-grid aiapply-grid-cols-2 aiapply-gap-2">
           <Field label="Expected salary" error={errors.salary}>
             <input
@@ -142,6 +168,26 @@ export function FilterForm({
             </select>
           </Field>
         </div>
+
+        <Field label={`Min match score (${filters.minPolicyScore ?? 0})`} error={errors.minPolicyScore}>
+          <input
+            type="range"
+            className="aiapply-range"
+            min={0}
+            max={100}
+            step={5}
+            value={filters.minPolicyScore ?? 0}
+            disabled={disabled}
+            aria-valuemin={0}
+            aria-valuemax={100}
+            aria-valuenow={filters.minPolicyScore ?? 0}
+            onChange={(e) =>
+              patch("minPolicyScore", {
+                minPolicyScore: Number.parseInt(e.target.value, 10),
+              })
+            }
+          />
+        </Field>
 
         <div className="aiapply-glass-card aiapply-px-3 aiapply-py-1">
           <Toggle

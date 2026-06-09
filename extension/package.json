@@ -8,9 +8,9 @@
     "src": "."
   },
   "scripts": {
-    "dev": "node ./scripts/print-load-hint.js && plasmo dev",
-    "build": "plasmo build",
-    "package": "plasmo package",
+    "dev": "node ./scripts/print-load-hint.js && pnpm exec plasmo dev",
+    "build": "pnpm exec plasmo build",
+    "package": "pnpm exec plasmo package",
     "typecheck": "tsc --noEmit",
     "lint": "echo \"lint: extension\""
   },

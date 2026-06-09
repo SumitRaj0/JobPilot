@@ -29,6 +29,19 @@ services:
       - mongo-data:/data/db
     restart: unless-stopped
 
+  deps:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile.node
+    container_name: aiapply-deps
+    entrypoint: ["/entrypoint-deps.sh"]
+    environment:
+      CI: "true"
+    volumes:
+      - .:/app
+      - node_modules:/app/node_modules
+    restart: "no"
+
   backend:
     build:
       context: .
@@ -38,6 +51,7 @@ services:
     ports:
       - "3001:3001"
     environment:
+      CI: "true"
       NODE_ENV: development
       PORT: 3001
       REDIS_URL: redis://redis:6379
@@ -48,6 +62,8 @@ services:
       - .:/app
       - node_modules:/app/node_modules
     depends_on:
+      deps:
+        condition: service_completed_successfully
       redis:
         condition: service_healthy
       mongo:
@@ -61,6 +77,7 @@ services:
     container_name: aiapply-worker
     command: ["pnpm", "--filter", "@aiapply/worker", "dev"]
     environment:
+      CI: "true"
       NODE_ENV: development
       REDIS_URL: redis://redis:6379
       BACKEND_URL: http://backend:3001
@@ -93,7 +110,7 @@ services:
     container_name: aiapply-extension
     command: ["pnpm", "--filter", "@aiapply/extension", "dev"]
     environment:
-      # Chrome on the host talks to the API via published port 3001
+      CI: "true"
       PLASMO_PUBLIC_API_URL: http://localhost:3001
     volumes:
       - .:/app

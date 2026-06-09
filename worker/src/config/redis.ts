@@ -2,8 +2,10 @@ import { Redis } from "ioredis";
 
 import { env } from "./env.js";
 
-let redis: Redis | null = null;
-let redisReady = false;
+let redis: Redis | null = null;let redisReady = false;
+
+/** Dedicated connection for BullMQ worker (must not share the app Redis client). */
+let bullWorkerRedis: Redis | null = null;
 
 export function isRedisReady(): boolean {
   return redisReady && redis !== null;
@@ -14,6 +16,17 @@ export function getRedisConnection(): Redis {
     throw new Error("Redis is not connected");
   }
   return redis;
+}
+
+/** BullMQ worker needs its own ioredis client with blocking commands. */
+export function getBullWorkerConnection(): Redis {
+  if (!bullWorkerRedis) {
+    bullWorkerRedis = new Redis(env.REDIS_URL, {
+      maxRetriesPerRequest: null,
+      enableReadyCheck: false,
+    });
+  }
+  return bullWorkerRedis;
 }
 
 export async function connectRedis(): Promise<boolean> {
@@ -51,6 +64,14 @@ export async function connectRedis(): Promise<boolean> {
 }
 
 export async function disconnectRedis(): Promise<void> {
+  if (bullWorkerRedis) {
+    try {
+      await bullWorkerRedis.quit();
+    } catch {
+      bullWorkerRedis.disconnect();
+    }
+    bullWorkerRedis = null;
+  }
   if (!redis) return;
   redis.disconnect();
   redis = null;

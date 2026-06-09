@@ -66,6 +66,21 @@ export function validateJobFilters(filters: JobFilters): FilterValidationResult 
     }
   }
 
+  const location = filters.location?.trim() ?? "";
+  if (location.length > 60) {
+    errors.location = "Location is too long (max 60 characters)";
+  }
+
+  const excludeKeywords = filters.excludeKeywords?.trim() ?? "";
+  if (excludeKeywords.length > 120) {
+    errors.excludeKeywords = "Exclude keywords too long (max 120 characters)";
+  }
+
+  const minPolicyScore = filters.minPolicyScore ?? 0;
+  if (minPolicyScore < 0 || minPolicyScore > 100) {
+    errors.minPolicyScore = "Min match score must be between 0 and 100";
+  }
+
   if (!filters.fullAuto) {
     warnings.push("Full Auto is off — the run will scrape jobs only (no applications).");
   }
@@ -78,6 +93,7 @@ export function validateJobFilters(filters: JobFilters): FilterValidationResult 
 }
 
 export function sanitizeJobFilters(filters: JobFilters): JobFilters {
+  const minPolicyScore = filters.minPolicyScore ?? 0;
   return {
     ...filters,
     mode: filters.mode === "recommended" ? "recommended" : "search",
@@ -85,5 +101,8 @@ export function sanitizeJobFilters(filters: JobFilters): JobFilters {
     experience: filters.experience?.trim() ?? "",
     salary: filters.salary?.trim() || undefined,
     datePosted: filters.datePosted?.trim() || undefined,
+    location: filters.location?.trim() || undefined,
+    excludeKeywords: filters.excludeKeywords?.trim() || undefined,
+    minPolicyScore: minPolicyScore > 0 ? Math.min(100, minPolicyScore) : undefined,
   };
 }

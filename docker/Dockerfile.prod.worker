@@ -1,5 +1,5 @@
 # Production worker image (Playwright + Chromium)
-FROM mcr.microsoft.com/playwright:v1.49.1-noble AS builder
+FROM mcr.microsoft.com/playwright:v1.60.0-noble AS builder
 
 RUN corepack enable && corepack prepare pnpm@9.15.0 --activate
 WORKDIR /app
@@ -15,7 +15,7 @@ RUN pnpm install --frozen-lockfile
 RUN pnpm --filter @aiapply/shared build
 RUN pnpm --filter @aiapply/worker build
 
-FROM mcr.microsoft.com/playwright:v1.49.1-noble AS runner
+FROM mcr.microsoft.com/playwright:v1.60.0-noble AS runner
 
 RUN apt-get update && apt-get install -y --no-install-recommends netcat-openbsd \
   && rm -rf /var/lib/apt/lists/*

@@ -27,6 +27,11 @@ export function RunStatusLine({ lastRun }: RunStatusLineProps) {
           {summary.recommendedMetrics.applied}
         </p>
       )}
+      {summary.filterBreakdownLine && (
+        <p className="aiapply-m-0 aiapply-mt-2 aiapply-text-[11px] aiapply-text-slate-500 aiapply-break-words">
+          Filters: {summary.filterBreakdownLine}
+        </p>
+      )}
     </div>
   );
 }

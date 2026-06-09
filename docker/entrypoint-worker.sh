@@ -11,9 +11,6 @@ until nc -z backend 3001 2>/dev/null; do
   sleep 1
 done
 
-echo "[docker] Building @aiapply/shared..."
-pnpm --filter @aiapply/shared build
-
 mkdir -p /app/worker/sessions /app/worker/screenshots
 
 if [ "$1" = "--prep-only" ]; then

@@ -1,4 +1,9 @@
-import type { JobFilters } from "@aiapply/shared";
+import {
+  formatFilterBreakdown,
+  mergeFilterBreakdown,
+  type JobFilters,
+  type NaukriFilterBreakdown,
+} from "@aiapply/shared";
 import type { Page } from "playwright";
 
 import {
@@ -16,8 +21,10 @@ import type { AutomationRunResult, RunContext } from "../types.js";
 import { isRunAborted } from "../shared/abortCheck.js";
 import { emptyApplyBatch, mergeApplyBatch, type ApplyBatchResult } from "../shared/applyBatch.js";
 import { applyToJobs } from "./apply.js";
+import { runCardFilters } from "./cardFilters.js";
+import { loadJobPreferences } from "./companyPreferences.js";
 import { navigateToSearch } from "./filters.js";
-import { applyNaukriPolicies } from "./policy.js";
+import { NaukriNetworkCapture } from "./networkScrape.js";
 import {
   filterRecentlyProcessedJobs,
   markJobsProcessedRecently,
@@ -25,8 +32,8 @@ import {
 import {
   loadMoreJobsOnPage,
   navigateToRecommended,
-  scrapeRecommendedJobCards,
-  scrapeJobCards,
+  scrapeRecommendedCards,
+  scrapeSearchCards,
   scrollUntilNoNewJobs,
   tryGoToNextSearchPage,
 } from "./scraper.js";
@@ -119,6 +126,10 @@ export class NaukriAutomation {
         };
       }
 
+      const networkCapture = new NaukriNetworkCapture();
+      networkCapture.attach(page);
+      const jobPreferences = loadJobPreferences();
+
       const seenJobIds = new Set<string>();
       let applyResult = emptyApplyBatch();
       const maxPages = mode === "recommended" ? 1 : resolveMaxSearchPages();
@@ -128,6 +139,7 @@ export class NaukriAutomation {
       let matchedFilters = 0;
       let readyToApply = 0;
       let skippedRecent = 0;
+      let filterBreakdown: NaukriFilterBreakdown | undefined;
 
       for (let pageIndex = 0; pageIndex < maxPages; pageIndex++) {
         if (await isRunAborted(ctx)) {
@@ -164,16 +176,36 @@ export class NaukriAutomation {
 
         const scraped =
           mode === "recommended"
-            ? await scrapeRecommendedJobCards(page, filters, logger, scrapeLimit)
-            : await scrapeJobCards(page, filters, logger, scrapeLimit, "search");
-        const policy = applyNaukriPolicies(scraped, filters);
-        matchedFilters += policy.stats.matchedFilters;
-        readyToApply += policy.stats.readyToApply;
+            ? await scrapeRecommendedCards(page, logger, scrapeLimit, networkCapture)
+            : await scrapeSearchCards(page, logger, scrapeLimit, networkCapture);
+
+        const filtered = runCardFilters(scraped.jobs, filters, { jobPreferences });
+        filterBreakdown = filterBreakdown
+          ? mergeFilterBreakdown(filterBreakdown, {
+              ...filtered.breakdown,
+              networkMerged: scraped.networkMerged,
+            })
+          : {
+              ...filtered.breakdown,
+              networkMerged: scraped.networkMerged,
+            };
+
+        matchedFilters += filtered.jobs.length;
+        readyToApply += filtered.jobs.filter(
+          (j) => j.easyApply && !j.externalApply
+        ).length;
         if (mode === "recommended") {
-          recommendedFound += policy.stats.recommendedFound;
+          recommendedFound += scraped.jobs.filter(
+            (j) => j.source === "recommended"
+          ).length;
         }
 
-        const recent = await filterRecentlyProcessedJobs(userId, policy.jobs);
+        logger.info("Filter breakdown", {
+          page: pageIndex + 1,
+          breakdown: formatFilterBreakdown(filtered.breakdown),
+        });
+
+        const recent = await filterRecentlyProcessedJobs(userId, filtered.jobs);
         skippedRecent += recent.skippedRecent;
 
         const jobs = recent.jobs.filter((j) => !seenJobIds.has(j.jobId));
@@ -243,6 +275,9 @@ export class NaukriAutomation {
       if (skippedRecent > 0) {
         messages.push(`Skipped ${skippedRecent} jobs processed in recent runs`);
       }
+      if (filterBreakdown) {
+        messages.push(`Filter breakdown — ${formatFilterBreakdown(filterBreakdown)}`);
+      }
       const scrapeOk = seenJobIds.size > 0;
       const minSuccessApplies =
         mode === "recommended"
@@ -270,6 +305,7 @@ export class NaukriAutomation {
           alreadyApplied: applyResult.alreadyApplied,
           noApplyButton: applyResult.noApplyButton,
           messages,
+          filterBreakdown,
           recommendedStats: {
             found: recommendedFound,
             matched: matchedFilters,
@@ -320,6 +356,7 @@ export class NaukriAutomation {
         alreadyApplied: applyResult.alreadyApplied,
         noApplyButton: applyResult.noApplyButton,
         messages,
+        filterBreakdown,
       };
     } catch (err) {
       const shot = await captureScreenshot(page, "naukri-fatal", "naukri").catch(

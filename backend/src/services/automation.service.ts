@@ -2,6 +2,7 @@ import {
   automationAbortRedisKey,
   type ExtensionPageMetadata,
   type JobFilters,
+  type NaukriFilterBreakdown,
   type Platform,
 } from "@aiapply/shared";
 
@@ -29,6 +30,7 @@ export interface AutomationLastRun {
   alreadyApplied: number;
   noApplyButton: number;
   messages: string[];
+  filterBreakdown?: NaukriFilterBreakdown;
   recommendedStats?: {
     found: number;
     matched: number;
@@ -223,6 +225,7 @@ export class AutomationService {
       alreadyApplied: number;
       noApplyButton: number;
       messages: string[];
+      filterBreakdown?: NaukriFilterBreakdown;
       recommendedStats?: {
         found: number;
         matched: number;

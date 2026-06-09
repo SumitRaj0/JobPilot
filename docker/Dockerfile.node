@@ -17,10 +17,9 @@ COPY worker/package.json worker/tsconfig.json ./worker/
 COPY extension/package.json extension/tsconfig.json ./extension/
 COPY dashboard/package.json dashboard/tsconfig.json ./dashboard/
 
-RUN pnpm install --frozen-lockfile
-
 COPY docker/entrypoint-node.sh /entrypoint.sh
-RUN sed -i 's/\r$//' /entrypoint.sh && chmod +x /entrypoint.sh
+COPY docker/entrypoint-deps.sh /entrypoint-deps.sh
+RUN sed -i 's/\r$//' /entrypoint.sh /entrypoint-deps.sh && chmod +x /entrypoint.sh /entrypoint-deps.sh
 
 ENTRYPOINT ["/entrypoint.sh"]
 CMD ["pnpm", "--filter", "@aiapply/backend", "dev"]

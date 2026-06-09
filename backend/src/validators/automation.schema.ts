@@ -34,6 +34,9 @@ export const jobFiltersSchema = z.object({
     .refine((v) => !v || Number.parseInt(v, 10) > 0, {
       message: "Date posted must be positive",
     }),
+  location: z.string().trim().max(60).optional(),
+  excludeKeywords: z.string().trim().max(120).optional(),
+  minPolicyScore: z.number().int().min(0).max(100).optional(),
   easyApplyOnly: z.boolean().default(false),
   fullAuto: z.boolean().default(false),
 }).superRefine((filters, ctx) => {
@@ -79,6 +82,25 @@ export const completeAutomationSchema = z.object({
   alreadyApplied: z.number().int().min(0).default(0),
   noApplyButton: z.number().int().min(0).default(0),
   messages: z.array(z.string()).default([]),
+  filterBreakdown: z
+    .object({
+      parsed: z.number().int().min(0),
+      networkMerged: z.number().int().min(0),
+      noStableJobId: z.number().int().min(0),
+      roleMismatch: z.number().int().min(0),
+      excludeKeyword: z.number().int().min(0),
+      experienceMismatch: z.number().int().min(0),
+      dateTooOld: z.number().int().min(0),
+      locationMismatch: z.number().int().min(0),
+      remoteMismatch: z.number().int().min(0),
+      salaryMismatch: z.number().int().min(0),
+      easyApplyOnly: z.number().int().min(0),
+      alreadyApplied: z.number().int().min(0),
+      blockedCompany: z.number().int().min(0),
+      belowMinScore: z.number().int().min(0),
+      matched: z.number().int().min(0),
+    })
+    .optional(),
   recommendedStats: z
     .object({
       found: z.number().int().min(0),

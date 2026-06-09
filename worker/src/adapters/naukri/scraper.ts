@@ -9,12 +9,23 @@ import {
   scrollPageDown,
 } from "./scrapeInBrowser.js";
 import { env } from "../../config/env.js";
-import { jobTitleMatchesRole } from "./roleMatch.js";
 import { NaukriSelectors } from "./selectors.js";
 import type { NaukriScrapedJob } from "./types.js";
+import {
+  mergeJobsByJobId,
+  type NaukriNetworkCapture,
+} from "./networkScrape.js";
 
 /** Primary Naukri SRP job card selector. */
-const JOB_TUPLE_SELECTOR = NaukriSelectors.search.jobTuple;
+const SEARCH_TUPLE_SELECTOR = NaukriSelectors.search.jobTuple;
+
+/** Recommended feed uses a broader selector set. */
+const RECOMMENDED_TUPLE_SELECTOR = [
+  SEARCH_TUPLE_SELECTOR,
+  '[class*="reco" i] article',
+  '[class*="recommend" i] [data-job-id]',
+  '[class*="recommended" i] div[data-job-id]',
+].join(", ");
 
 const TITLE_LINK_SELECTORS = [
   "a.title",
@@ -85,7 +96,7 @@ export async function tryGoToNextSearchPage(
   await nextLink.click().catch(() => undefined);
   await humanDelay(1000, 1800);
   await page
-    .locator(JOB_TUPLE_SELECTOR)
+    .locator(SEARCH_TUPLE_SELECTOR)
     .first()
     .waitFor({ state: "attached", timeout: 15_000 })
     .catch(() => undefined);
@@ -96,27 +107,28 @@ export async function tryGoToNextSearchPage(
   return true;
 }
 
-export async function scrapeJobCards(
+async function scrapeTuplesFromPage(
   page: Page,
-  filters: JobFilters,
   logger: AutomationLogger,
-  limit = env.NAUKRI_SCRAPE_LIMIT,
-  source: "search" | "recommended" = "search"
-): Promise<NaukriScrapedJob[]> {
+  limit: number,
+  source: "search" | "recommended",
+  tupleSelector: string,
+  networkCapture?: NaukriNetworkCapture
+): Promise<{ jobs: NaukriScrapedJob[]; networkMerged: number }> {
   if (page.isClosed()) {
     logger.warn("Page closed before scrape");
-    return [];
+    return { jobs: [], networkMerged: 0 };
   }
 
   await page
-    .locator(JOB_TUPLE_SELECTOR)
+    .locator(tupleSelector)
     .first()
     .waitFor({ state: "attached", timeout: 12_000 })
     .catch(() => undefined);
 
   const raw = await page
     .evaluate(scrapeTuplesInBrowser, {
-      tupleSelector: JOB_TUPLE_SELECTOR,
+      tupleSelector,
       titleSelectors: TITLE_LINK_SELECTORS,
       max: limit,
       source,
@@ -126,67 +138,83 @@ export async function scrapeJobCards(
       return [] as (NaukriScrapedJob | null)[];
     });
 
-  const tupleCount = await page.locator(JOB_TUPLE_SELECTOR).count();
-  const jobs = raw.filter((j): j is NaukriScrapedJob => j != null);
+  const tupleCount = await page.locator(tupleSelector).count();
+  const domJobs = raw.filter((j): j is NaukriScrapedJob => j != null);
 
-  logger.info("Scraping job cards", { visible: tupleCount, parsed: jobs.length });
+  logger.info("Scraping job cards", {
+    source,
+    visible: tupleCount,
+    parsed: domJobs.length,
+  });
 
-  if (jobs.length === 0 && tupleCount > 0) {
+  if (domJobs.length === 0 && tupleCount > 0) {
     const sample = await page
-      .evaluate(sampleFirstTupleLinks, JOB_TUPLE_SELECTOR)
+      .evaluate(sampleFirstTupleLinks, tupleSelector)
       .catch(() => null);
-    logger.warn("Cards visible but no titles parsed — DOM may have changed", {
+    logger.warn("Cards visible but no stable job IDs parsed — DOM may have changed", {
       sample,
     });
   }
 
-  let filtered = jobs;
-  if (filters.mode === "search" && filters.role.trim()) {
-    const roleMatched = jobs.filter((j) =>
-      jobTitleMatchesRole(j.title, filters.role)
-    );
-    if (roleMatched.length < jobs.length) {
-      logger.info("Role relevance filter", {
-        before: jobs.length,
-        after: roleMatched.length,
-        role: filters.role.trim(),
-      });
-    }
-    filtered = roleMatched.length > 0 ? roleMatched : jobs;
-  }
-  if (filters.easyApplyOnly) {
-    const withEasyBadge = filtered.filter((j) => j.easyApply);
-    const inPortalApply = filtered.filter((j) => !j.externalApply);
-
-    const beforeEasy = filtered.length;
-    if (withEasyBadge.length > 0) {
-      filtered = withEasyBadge;
-      if (withEasyBadge.length < beforeEasy) {
-        logger.info("Easy Apply filter (badge)", {
-          parsed: beforeEasy,
-          kept: withEasyBadge.length,
-        });
-      }
-    } else if (inPortalApply.length > 0) {
-      logger.warn(
-        "Easy Apply badge not found on cards — using Naukri Apply (excluding company-site jobs)",
-        { kept: inPortalApply.length, parsed: filtered.length }
-      );
-      filtered = inPortalApply.map((j) => ({ ...j, easyApply: true }));
-    } else if (filtered.length > 0) {
-      logger.warn(
-        "Easy Apply only: only company-site / external jobs visible — none to auto-apply",
-        { parsed: filtered.length }
-      );
-      filtered = [];
-    }
+  const networkJobs = networkCapture?.drain() ?? [];
+  const merged = mergeJobsByJobId(domJobs, networkJobs);
+  if (merged.networkMerged > 0) {
+    logger.info("Merged network scrape jobs", {
+      dom: domJobs.length,
+      networkAdded: merged.networkMerged,
+      total: merged.jobs.length,
+    });
   }
 
-  logger.info("Scraped jobs", {
-    total: filtered.length,
-    easyApplyOnly: filters.easyApplyOnly,
-  });
-  return filtered;
+  return merged;
+}
+
+export async function scrapeSearchCards(
+  page: Page,
+  logger: AutomationLogger,
+  limit = env.NAUKRI_SCRAPE_LIMIT,
+  networkCapture?: NaukriNetworkCapture
+): Promise<{ jobs: NaukriScrapedJob[]; networkMerged: number }> {
+  return scrapeTuplesFromPage(
+    page,
+    logger,
+    limit,
+    "search",
+    SEARCH_TUPLE_SELECTOR,
+    networkCapture
+  );
+}
+
+export async function scrapeRecommendedCards(
+  page: Page,
+  logger: AutomationLogger,
+  limit = env.NAUKRI_SCRAPE_LIMIT,
+  networkCapture?: NaukriNetworkCapture
+): Promise<{ jobs: NaukriScrapedJob[]; networkMerged: number }> {
+  return scrapeTuplesFromPage(
+    page,
+    logger,
+    limit,
+    "recommended",
+    RECOMMENDED_TUPLE_SELECTOR,
+    networkCapture
+  );
+}
+
+/** @deprecated Use scrapeSearchCards — kept for internal compatibility. */
+export async function scrapeJobCards(
+  page: Page,
+  _filters: JobFilters,
+  logger: AutomationLogger,
+  limit = env.NAUKRI_SCRAPE_LIMIT,
+  source: "search" | "recommended" = "search",
+  networkCapture?: NaukriNetworkCapture
+): Promise<NaukriScrapedJob[]> {
+  const result =
+    source === "recommended"
+      ? await scrapeRecommendedCards(page, logger, limit, networkCapture)
+      : await scrapeSearchCards(page, logger, limit, networkCapture);
+  return result.jobs;
 }
 
 export async function navigateToRecommended(
@@ -196,7 +224,7 @@ export async function navigateToRecommended(
   await page.goto(RECOMMENDED_URL, { waitUntil: "domcontentloaded", timeout: 45_000 });
   await page.waitForLoadState("networkidle", { timeout: 15_000 }).catch(() => undefined);
   await page
-    .locator(JOB_TUPLE_SELECTOR)
+    .locator(RECOMMENDED_TUPLE_SELECTOR)
     .first()
     .waitFor({ state: "attached", timeout: 12_000 })
     .catch(() => undefined);
@@ -206,10 +234,11 @@ export async function navigateToRecommended(
 export async function scrollUntilNoNewJobs(
   page: Page,
   logger: AutomationLogger,
-  options?: { maxScrolls?: number; maxJobs?: number }
+  options?: { maxScrolls?: number; maxJobs?: number; tupleSelector?: string }
 ): Promise<void> {
   const maxScrolls = options?.maxScrolls ?? env.MAX_RECOMMENDED_SCROLLS;
   const maxJobs = options?.maxJobs ?? env.MAX_RECOMMENDED_JOBS;
+  const tupleSelector = options?.tupleSelector ?? RECOMMENDED_TUPLE_SELECTOR;
 
   let prevCount = 0;
   let stableRounds = 0;
@@ -219,7 +248,7 @@ export async function scrollUntilNoNewJobs(
     await scrollForMoreJobs(page, logger);
     await humanDelay(500, 900);
 
-    const count = await page.locator(JOB_TUPLE_SELECTOR).count();
+    const count = await page.locator(tupleSelector).count();
     if (count >= maxJobs) break;
     if (count <= prevCount) {
       stableRounds++;
@@ -231,7 +260,7 @@ export async function scrollUntilNoNewJobs(
   }
 
   logger.info("Recommended scroll finished", {
-    cards: await page.locator(JOB_TUPLE_SELECTOR).count().catch(() => 0),
+    cards: await page.locator(tupleSelector).count().catch(() => 0),
     maxScrolls,
     maxJobs,
   });
@@ -241,10 +270,12 @@ export async function scrapeRecommendedJobCards(
   page: Page,
   filters: JobFilters,
   logger: AutomationLogger,
-  limit = env.NAUKRI_SCRAPE_LIMIT
+  limit = env.NAUKRI_SCRAPE_LIMIT,
+  networkCapture?: NaukriNetworkCapture
 ): Promise<NaukriScrapedJob[]> {
   await scrollUntilNoNewJobs(page, logger, { maxJobs: limit * 2 });
-  return scrapeJobCards(page, filters, logger, limit, "recommended");
+  const result = await scrapeRecommendedCards(page, logger, limit, networkCapture);
+  return result.jobs;
 }
 
 export async function scrollForMoreJobs(

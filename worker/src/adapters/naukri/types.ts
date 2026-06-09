@@ -5,6 +5,8 @@ export interface NaukriScrapedJob extends JobCard {
   policyScore?: number;
   tupleIndex: number;
   applySelector?: string;
+  /** Parsed from card text when available (years). */
+  experienceYears?: number;
   /** Detected on SRP card — skip re-apply (same title/company may differ by jobId). */
   alreadyApplied?: boolean;
 }

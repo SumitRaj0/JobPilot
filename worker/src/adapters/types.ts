@@ -1,4 +1,4 @@
-import type { JobFilters, Platform } from "@aiapply/shared";
+import type { JobFilters, NaukriFilterBreakdown, Platform } from "@aiapply/shared";
 import type { Page } from "playwright";
 
 import type { AutomationLogger } from "../logging/automationLogger.js";
@@ -13,6 +13,7 @@ export interface AutomationRunResult {
   /** No Naukri Apply / company-site only — not counted as failed. */
   noApplyButton: number;
   messages: string[];
+  filterBreakdown?: NaukriFilterBreakdown;
   recommendedStats?: {
     found: number;
     matched: number;

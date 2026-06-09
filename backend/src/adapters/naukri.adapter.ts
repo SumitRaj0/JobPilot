@@ -13,6 +13,9 @@ export class NaukriAdapter extends BasePlatformAdapter {
       remote: filters.remote,
       salary: filters.salary,
       datePosted: filters.datePosted,
+      location: filters.location,
+      excludeKeywords: filters.excludeKeywords,
+      minPolicyScore: filters.minPolicyScore,
       easyApply: filters.easyApplyOnly,
     };
   }

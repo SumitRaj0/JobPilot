@@ -3,7 +3,7 @@ import { Worker } from "bullmq";
 import { QUEUE_NAMES } from "@aiapply/shared";
 
 import { runAutomation, type AutomationJobPayload } from "../automation/runAutomation.js";
-import { getRedisConnection } from "../config/redis.js";
+import { getBullWorkerConnection } from "../config/redis.js";
 import { env } from "../config/env.js";
 import { browserManager } from "../browser/BrowserManager.js";
 import { notifyJobComplete } from "../notifyBackend.js";
@@ -13,7 +13,7 @@ let worker: Worker<AutomationJobPayload> | null = null;
 export function startAutomationWorker(): Worker<AutomationJobPayload> {
   if (worker) return worker;
 
-  const connection = getRedisConnection();
+  const connection = getBullWorkerConnection();
 
   worker = new Worker<AutomationJobPayload>(
     QUEUE_NAMES.AUTOMATION,
@@ -32,6 +32,10 @@ export function startAutomationWorker(): Worker<AutomationJobPayload> {
       lockRenewTime: 30 * 1000,
     }
   );
+
+  worker.on("ready", () => {
+    console.info(`[Worker] BullMQ worker ready on queue "${QUEUE_NAMES.AUTOMATION}"`);
+  });
 
   worker.on("completed", (job, result) => {
     console.info(`[Worker] Job ${job.id} completed`, result);

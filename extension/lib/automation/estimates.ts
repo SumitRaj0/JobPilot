@@ -1,3 +1,5 @@
+import { formatFilterBreakdown } from "@aiapply/shared";
+
 import type { AutomationLastRun } from "~lib/messaging/types";
 
 /** Session target for timer and status copy. */
@@ -62,6 +64,8 @@ export function normalizeLastRun(
     alreadyApplied: run.alreadyApplied ?? 0,
     noApplyButton: run.noApplyButton ?? 0,
     messages: run.messages ?? [],
+    filterBreakdown: run.filterBreakdown,
+    recommendedStats: run.recommendedStats,
     finishedAt: run.finishedAt ?? new Date().toISOString(),
   };
 }
@@ -83,6 +87,7 @@ export interface RunStatusSummary {
     ready: number;
     applied: number;
   } | null;
+  filterBreakdownLine?: string | null;
 }
 
 /** Parse apply target from worker messages. */
@@ -180,6 +185,13 @@ export function buildRunStatusSummary(run: AutomationLastRun): RunStatusSummary 
         }
       : parseRecommendedMetrics(run.messages ?? []);
 
+  const filterBreakdownLine = run.filterBreakdown
+    ? formatFilterBreakdown(run.filterBreakdown)
+    : (run.messages ?? []).find((m) => /^Filter breakdown — /i.test(m))?.replace(
+        /^Filter breakdown — /i,
+        ""
+      ) ?? null;
+
   return {
     applied,
     failed,
@@ -190,5 +202,6 @@ export function buildRunStatusSummary(run: AutomationLastRun): RunStatusSummary 
     colorClass: toneColorClass(tone),
     line,
     recommendedMetrics,
+    filterBreakdownLine,
   };
 }

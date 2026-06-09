@@ -12,7 +12,11 @@
     "build": "pnpm -r build",
     "lint": "pnpm -r lint",
     "typecheck": "pnpm -r typecheck",
+    "start": "node scripts/start-local.mjs",
+    "start:docker": "node scripts/start-all.mjs",
+    "stop": "docker compose down",
     "docker:up": "docker compose up --build",
+    "docker:deps": "docker compose run --rm deps",
     "docker:up:detach": "docker compose up --build -d",
     "docker:down": "docker compose down",
     "docker:logs": "docker compose logs -f",
@@ -26,5 +30,8 @@
   "engines": {
     "node": ">=20"
   },
-  "packageManager": "pnpm@9.15.0"
+  "packageManager": "pnpm@9.15.0",
+  "dependencies": {
+    "redis-server": "^1.2.2"
+  }
 }

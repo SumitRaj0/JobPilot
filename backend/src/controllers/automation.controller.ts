@@ -61,6 +61,7 @@ export async function completeAutomation(req: Request, res: Response) {
     alreadyApplied: body.alreadyApplied,
     noApplyButton: body.noApplyButton,
     messages: body.messages,
+    filterBreakdown: body.filterBreakdown,
     recommendedStats: body.recommendedStats,
   });
 

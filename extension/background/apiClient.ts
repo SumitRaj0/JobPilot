@@ -1,6 +1,6 @@
 import { API_BASE_URL, API_ROUTES } from "~lib/config";
 import type { ExtensionPageMetadata } from "~lib/messaging/types";
-import type { JobFilters, Platform } from "@aiapply/shared";
+import type { JobFilters, NaukriFilterBreakdown, Platform } from "@aiapply/shared";
 
 export interface SyncResult {
   ok: boolean;
@@ -99,6 +99,7 @@ export interface BackendAutomationStatus {
     alreadyApplied: number;
     noApplyButton: number;
     messages: string[];
+    filterBreakdown?: NaukriFilterBreakdown;
     recommendedStats?: {
       found: number;
       matched: number;
@@ -123,6 +124,7 @@ export interface BackendAutomationStatus {
         alreadyApplied: number;
         noApplyButton: number;
         messages: string[];
+        filterBreakdown?: NaukriFilterBreakdown;
         recommendedStats?: {
           found: number;
           matched: number;

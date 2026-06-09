@@ -13,9 +13,24 @@ export interface JobFilters {
   remote: boolean;
   salary?: string;
   datePosted?: string;
+  /** City/region contains match (e.g. Bangalore, Remote) */
+  location?: string;
+  /** Comma-separated title keywords to skip (e.g. sales, support) */
+  excludeKeywords?: string;
+  /** Minimum policy score 0–100; 0 = disabled */
+  minPolicyScore?: number;
   easyApplyOnly: boolean;
   fullAuto: boolean;
 }
+
+export type {
+  NaukriFilterBreakdown,
+} from "./filterBreakdown.js";
+export {
+  emptyFilterBreakdown,
+  formatFilterBreakdown,
+  mergeFilterBreakdown,
+} from "./filterBreakdown.js";
 
 /** Job card scraped from a platform */
 export interface JobCard {

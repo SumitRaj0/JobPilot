@@ -106,7 +106,37 @@ export function scrapeTuplesInBrowser(
         .querySelector(".job-post-day, .type, span.fleft.grey-text")
         ?.textContent?.trim() || undefined;
 
+    const expText =
+      card
+        .querySelector(
+          ".exp, .exp-wrap, .experience, [class*='experience' i], [class*='exp-wrap' i]"
+        )
+        ?.textContent?.trim() ?? "";
+
     const tupleText = (card.textContent ?? "").slice(0, 2000);
+
+    let experienceYears: number | undefined;
+    const expSource = expText || tupleText;
+    const expRange = expSource.match(
+      /(\d+(?:\.\d+)?)\s*[-–to]+\s*(\d+(?:\.\d+)?)\s*(?:years?|yrs?|y)/i
+    );
+    if (expRange) {
+      const min = Number.parseFloat(expRange[1]!);
+      const max = Number.parseFloat(expRange[2]!);
+      if (Number.isFinite(min) && Number.isFinite(max)) {
+        experienceYears = (min + max) / 2;
+      }
+    } else {
+      const expSingle = expSource.match(
+        /(\d+(?:\.\d+)?)\s*\+?\s*(?:years?|yrs?|y)/i
+      );
+      if (expSingle) {
+        const years = Number.parseFloat(expSingle[1]!);
+        if (Number.isFinite(years)) experienceYears = years;
+      } else if (/fresher|entry level/i.test(expSource)) {
+        experienceYears = 0;
+      }
+    }
 
     let easyApply = /easy\s*apply/i.test(tupleText);
     if (
@@ -181,14 +211,8 @@ export function scrapeTuplesInBrowser(
     const jobIdFromHref = jobIdMatch
       ? (jobIdMatch[1] ?? jobIdMatch[2] ?? jobIdMatch[3])
       : null;
-    const pageKey = `${window.location.pathname}${window.location.search}`
-      .replace(/[^a-z0-9]+/gi, "-")
-      .replace(/^-|-$/g, "")
-      .slice(0, 96);
-    const jobId =
-      dataJobId ||
-      jobIdFromHref ||
-      `naukri-${pageKey || "srp"}-${index}`;
+    const jobId = dataJobId || jobIdFromHref;
+    if (!jobId || !/^\d{6,}$/.test(jobId)) return null;
 
     return {
       platform: "naukri" as const,
@@ -199,6 +223,7 @@ export function scrapeTuplesInBrowser(
       location,
       salary,
       postedAt,
+      experienceYears,
       easyApply,
       externalApply,
       alreadyApplied,

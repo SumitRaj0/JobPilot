@@ -7,6 +7,9 @@ export const DEFAULT_FILTERS: JobFilters = {
   remote: false,
   salary: "",
   datePosted: "",
+  location: "",
+  excludeKeywords: "",
+  minPolicyScore: 0,
   easyApplyOnly: false,
   fullAuto: false,
 };
